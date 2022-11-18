@@ -17,7 +17,8 @@
 static ompt_set_callback_t ompt_set_callback = 0;
 static ompt_get_record_type_t ompt_get_record_type_fn = 0;
 static ompt_get_device_time_t ompt_get_device_time_fn = 0;
-
+static ompt_start_trace_t ompt_start_trace_fn = 0;
+static ompt_stop_trace_t ompt_stop_trace_fn = 0;
 // OMPT callbacks
 
 // Synchronous callbacks
@@ -34,6 +35,16 @@ static void on_ompt_callback_device_initialize
 
   ompt_get_record_type_fn = (ompt_get_record_type_t) lookup("ompt_get_record_type");
   ompt_get_device_time_fn = (ompt_get_device_time_t) lookup("ompt_get_device_time");
+  ompt_start_trace_fn = (ompt_start_trace_t) lookup("ompt_start_trace");
+  ompt_stop_trace_fn = (ompt_stop_trace_t) lookup("ompt_stop_trace");
+
+  if (ompt_start_trace_fn) {
+    ompt_callback_buffer_request_t req;
+    ompt_callback_buffer_complete_t comp;
+    ompt_start_trace_fn(NULL, req, comp);
+  } else {
+    printf("ERROR: Could not start tracin\n");
+  }
 
   if (ompt_get_record_type_fn) {
     ompt_buffer_cursor_t buf;
@@ -56,6 +67,11 @@ static void on_ompt_callback_device_finalize
 (
   int device_num
  ) {
+  if (ompt_stop_trace_fn) {
+    ompt_stop_trace_fn(NULL);
+  } else {
+    printf("ERROR: Could not stop tracin\n");
+  }
   printf("Callback Fini: device_num=%d\n", device_num);
 }
 
