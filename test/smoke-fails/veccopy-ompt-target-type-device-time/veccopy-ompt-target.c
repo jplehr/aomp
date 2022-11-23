@@ -24,18 +24,13 @@ int main()
       a[j]=b[j];
   }
 
-#pragma omp target teams distribute parallel for
-  {
-    for (int j = 0; j< N; j++)
-      a[j]=b[j];
-  }
-
   int rc = 0;
   for (i=0; i<N; i++)
     if (a[i] != b[i] ) {
       rc++;
       printf ("Wrong value: a[%d]=%d\n", i, a[i]);
     }
+
 
   if (!rc)
     printf("Success\n");
