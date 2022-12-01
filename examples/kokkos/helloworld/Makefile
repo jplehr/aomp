@@ -37,18 +37,23 @@ AOMPCC          = $(AOMP)/bin/clang++
 AOMP_GPUTARGET ?= amdgcn-amd-amdhsa
 KOKKOS_INSTALL_PREFIX ?= $(HOME)
 
+# Set common flags before we branch for HIP/OpenMP
+INCLUDES     = -I$(KOKKOS_ROOT)/include
+
 ifeq ($(KOKKOS_USE_HIP),1)
   is_hip    = hip
   KOKKOS_ROOT = $(KOKKOS_INSTALL_PREFIX)/kokkos_hip.$(AOMP_GPU)
+	INCLUDES += -I$(AOMP)/hip/include
+	TARGET_FLAGS = -D__HIP_PLATFORM_AMD__=1 --offload-arch=$(AOMP_GPU) -fopenmp
 else
   is_hip    =
   KOKKOS_ROOT = $(KOKKOS_INSTALL_PREFIX)/kokkos_omp.$(AOMP_GPU)
+  TARGET_FLAGS = -fopenmp -fopenmp-targets=$(AOMP_GPUTARGET) -Xopenmp-target=$(AOMP_GPUTARGET) -march=$(AOMP_GPU) 
 endif
 
-INCLUDES     = -I$(KOKKOS_ROOT)/include
-TARGET_FLAGS = -fopenmp -fopenmp-targets=$(AOMP_GPUTARGET) -Xopenmp-target=$(AOMP_GPUTARGET) -march=$(AOMP_GPU) 
-CPPFLAGS     = $(INCLUDES) -Wall -Wextra -O3 -DNDEBUG  -w $(TARGET_FLAGS) -std=c++17 -DGTEST_HAS_PTHREAD=0 -DGTEST_HAS_TR1_TUPLE=0 -DKOKKOS_DEPENDENCE -DKOKKOS_WORKAROUND_OPENMPTARGET_CLANG
-LINKFLAGS    = $(enableopt) -Wall -Wextra -O3 -DNDEBUG -w $(TARGET_FLAGS)
+#CPPFLAGS     = $(INCLUDES) -Wall -Wextra -O3 -DNDEBUG  -w $(TARGET_FLAGS) -std=c++17 -DGTEST_HAS_PTHREAD=0 -DGTEST_HAS_TR1_TUPLE=0 -DKOKKOS_DEPENDENCE -DKOKKOS_WORKAROUND_OPENMPTARGET_CLANG
+CPPFLAGS     = $(INCLUDES) -Wall -Wextra -O3 -w $(TARGET_FLAGS) -std=c++17 -DGTEST_HAS_PTHREAD=0 -DGTEST_HAS_TR1_TUPLE=0 -DKOKKOS_DEPENDENCE -x hip
+LINKFLAGS    = $(enableopt) -Wall -Wextra -O3 -w $(TARGET_FLAGS) -lamdhip64
 
 # Archive may be at lib64 for non-debian systems.
 # Ubuntu 20.04 has a /usr/lib64 but Kokkos does not use the lib64 directory.
