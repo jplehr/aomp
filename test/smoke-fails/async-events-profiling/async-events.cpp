@@ -3,7 +3,7 @@
 extern "C" void consume(int *p);
 
 int main(int argc, char **argv) {
-  const int N = 1024;
+  const int N = 8096;
 
 #pragma omp parallel
   {
