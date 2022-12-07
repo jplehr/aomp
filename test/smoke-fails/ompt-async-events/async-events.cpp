@@ -5,10 +5,10 @@
 extern "C" void consume(int *p);
 
 int main(int argc, char **argv) {
-  const int threadParallel = 2;
-  const int deviceStress = 4;
+  const int threadParallel = 10000;
+  const int deviceStress = 1;
 
-/// One thread submits many asynchronous tasks
+/// One thread submits many tasks, each generating (deviceStress * 3) OMPT events
 #pragma omp parallel
   {
 #pragma omp single
@@ -18,11 +18,14 @@ int main(int argc, char **argv) {
         {
           for (int j = 0; j < deviceStress; ++j) {
             int l_val = i;
+
 #pragma omp target map(l_val)
             { l_val += 1; }
+
             if (l_val != i + 1) {
               abort();
             }
+
             consume(&l_val);
           }
         }
