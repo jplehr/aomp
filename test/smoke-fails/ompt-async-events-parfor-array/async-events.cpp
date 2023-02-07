@@ -13,8 +13,8 @@ int identity(int i) { return i; }
 /// @param argv
 /// @return
 int main(int argc, char **argv) {
-  const int threadParallel = 1;
-  const int deviceComputeLoad = 1;
+  const int threadParallel = 100;
+  const int deviceComputeLoad = 10;
 
 // For threadParallel == 1 && deviceComputeLoad == 1 -> 9 Events observed
 #pragma omp parallel for schedule(static,1)

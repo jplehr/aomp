@@ -6,7 +6,7 @@ extern "C" void consume(int *p);
 
 int main(int argc, char **argv) {
   const int threadParallel = 10000;
-  const int deviceStress = 1;
+  const int deviceStress = 100;
 
 /// One thread submits many tasks, each generating (deviceStress * 3) OMPT events
 #pragma omp parallel
