@@ -43,14 +43,14 @@ echo " >>> Clean ..."
 git clean -fdx ./${BUILD_DIR}
 
 echo " >>> Configure ..."
-cmake -B ${BUILD_DIR} -S .                                                     \
+time cmake -B ${BUILD_DIR} -S .                                                     \
 -DAOMP_DIR=${AOMP_DIR}                                                         \
 -DTGT_OFFLOAD_ARCH=${TGT_OFFLOAD_ARCH}
 
 echo " >>> Build ..."
-cmake --build ${BUILD_DIR} --clean-first --parallel || exit 1
+time cmake --build ${BUILD_DIR} --clean-first --parallel || exit 1
 
 echo " >>> Run ..."
-./${BUILD_DIR}/${PROJECT_NAME} || exit 1
+time ./${BUILD_DIR}/${PROJECT_NAME} || exit 1
 
 echo " >>> DONE!"

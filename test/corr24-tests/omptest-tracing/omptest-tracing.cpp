@@ -32,7 +32,7 @@ TEST(VeccopyTraces, OnDevice_one) {
   OMPT_SUPPRESS_EVENT(EventTy::TargetSubmit);
   OMPT_SUPPRESS_EVENT(EventTy::TargetDataOp);
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
-
+  OMPT_ASSERT_SET_MODE_RELAXED();
   const int N = 10000;
   int a[N];
   int b[N];

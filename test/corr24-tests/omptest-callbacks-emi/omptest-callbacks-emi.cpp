@@ -54,17 +54,26 @@ TEST(VeccopyCallbacks, OnDevice_Sequenced) {
   for (i=0; i<N; i++)
     b[i]=i;
 
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // a ?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // b ?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &b);
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 1);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, &b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N* sizeof(int), nullptr, &a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, END);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 
 #pragma omp target parallel for
   {
@@ -72,17 +81,26 @@ TEST(VeccopyCallbacks, OnDevice_Sequenced) {
       a[j]=b[j];
   }
 
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // a ?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // b ?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &b);
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 3);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, &b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N* sizeof(int), nullptr, &a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 3, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 3, END);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 
 #pragma omp target teams distribute parallel for num_teams(3)
   {
@@ -105,70 +123,112 @@ TEST(VeccopyCallbacks, OnDevice_SequencedGrouped) {
 
   /* First Target Region */
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", Target, /*Kind=*/TARGET,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetEmi, /*Kind=*/TARGET,
                                /*Endpoint=*/BEGIN, /*DeviceNum=*/0)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/ALLOC,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/ALLOC, BEGIN,
                                /*Size=*/N * sizeof(int))
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/H2D,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/ALLOC, END,
+                               /*Size=*/N * sizeof(int))
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/H2D, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/&a)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/H2D, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/&a)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/ALLOC,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/ALLOC, BEGIN,
                                /*Size=*/N * sizeof(int))
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/H2D,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/ALLOC, END,
+                               /*Size=*/N * sizeof(int))
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/H2D, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/&b)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/H2D, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/&b)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetSubmit, /*RequestedNumTeams=*/1)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetSubmitEmi, /*RequestedNumTeams=*/1, BEGIN)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetSubmitEmi, /*RequestedNumTeams=*/1, END)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/D2H,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/D2H, BEGIN,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/nullptr, /*DstAddr=*/&b)
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/D2H,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/D2H, END,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/nullptr, /*DstAddr=*/&b)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/D2H, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/nullptr, /*DstAddr=*/&a)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/D2H, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/nullptr, /*DstAddr=*/&a)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/DELETE,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/DELETE, BEGIN,
                                /*Size=*/0)
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOp, /*OpType=*/DELETE,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/DELETE, END,
+                               /*Size=*/0)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/DELETE, BEGIN,
+                               /*Size=*/0)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetDataOpEmi, /*OpType=*/DELETE, END,
                                /*Size=*/0)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R1", Target, /*Kind=*/TARGET, /*Endpoint=*/END,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R1", TargetEmi, /*Kind=*/TARGET, /*Endpoint=*/END,
                                /*DeviceNum=*/0)
 
   /* Second Target Region */
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", Target, /*Kind=*/TARGET,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetEmi, /*Kind=*/TARGET,
                                /*Endpoint=*/BEGIN, /*DeviceNum=*/0)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/ALLOC,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/ALLOC, BEGIN,
                                /*Size=*/N * sizeof(int))
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/H2D,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/ALLOC, END,
+                               /*Size=*/N * sizeof(int))
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/H2D, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/&a)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/H2D, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/&a)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/ALLOC,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/ALLOC, BEGIN,
                                /*Size=*/N * sizeof(int))
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/H2D,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/ALLOC, END,
+                               /*Size=*/N * sizeof(int))
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/H2D, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/&b)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/H2D, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/&b)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetSubmit, /*RequestedNumTeams=*/0)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetSubmitEmi, /*RequestedNumTeams=*/0, BEGIN)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetSubmitEmi, /*RequestedNumTeams=*/0, END)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/D2H,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/D2H, BEGIN,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/nullptr, /*DstAddr=*/&b)
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/D2H,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/D2H, END,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/nullptr, /*DstAddr=*/&b)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/D2H, BEGIN,
+                               /*Size=*/N * sizeof(int),
+                               /*SrcAddr=*/nullptr, /*DstAddr=*/&a)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/D2H, END,
                                /*Size=*/N * sizeof(int),
                                /*SrcAddr=*/nullptr, /*DstAddr=*/&a)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/DELETE,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/DELETE, BEGIN,
                                /*Size=*/0)
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOp, /*OpType=*/DELETE,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/DELETE, END,
+                               /*Size=*/0)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/DELETE, BEGIN,
+                               /*Size=*/0)
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetDataOpEmi, /*OpType=*/DELETE, END,
                                /*Size=*/0)
 
-  OMPT_ASSERT_SEQUENCE_GROUPED("R2", Target, /*Kind=*/TARGET, /*Endpoint=*/END,
+  OMPT_ASSERT_SEQUENCE_GROUPED("R2", TargetEmi, /*Kind=*/TARGET, /*Endpoint=*/END,
                                /*DeviceNum=*/0)
 
   /* Actual testcase code. */
@@ -218,17 +278,26 @@ TEST(VeccopyCallbacks, ExplicitDefaultDevice) {
 
   int dev=  omp_get_default_device();
 
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 0, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 0, END);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 
     #pragma omp target teams distribute parallel for device(dev)
     {
@@ -255,17 +324,26 @@ TEST(VeccopyCallbacks, MultipleDevices) {
     b[i] = i;
 
 for (int dev = 0; dev < omp_get_num_devices(); ++dev) {
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, N * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 0, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 0, END);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END,N * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, N * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, N * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 
     #pragma omp target teams distribute parallel for device(dev)
     {
@@ -295,21 +373,28 @@ TEST(DataOpTests, DeclareTargetGlobalAndUpdate) {
   for (i = 0; i < X; i++)
     c[i] = 0;
 
-  OMPT_ASSERT_SEQUENCE(Target, ENTER_DATA, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, X * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, X * sizeof(int), a);
-  OMPT_ASSERT_SEQUENCE(Target, ENTER_DATA, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, ENTER_DATA, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, X * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, X * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, X * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, X * sizeof(int), a);
+  OMPT_ASSERT_SEQUENCE(TargetEmi,  ENTER_DATA, END, 0);
 
 #pragma omp target enter data map(to : a)
   OMPT_ASSERT_SYNC_POINT("After enter data");
 
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, X * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, X * sizeof(int), b);
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 1);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, X * sizeof(int), nullptr, b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, X * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, X * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, X * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, X * sizeof(int), b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, END);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, X * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, X * sizeof(int), nullptr, b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 #pragma omp target parallel for
   {
     for (int j = 0; j < X; j++)
@@ -317,18 +402,21 @@ TEST(DataOpTests, DeclareTargetGlobalAndUpdate) {
   }
   OMPT_ASSERT_SYNC_POINT("After target parallel for");
 
-  OMPT_ASSERT_SEQUENCE(Target, EXIT_DATA, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, X * sizeof(int), nullptr, a);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(Target, EXIT_DATA, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, EXIT_DATA, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, X * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, X * sizeof(int), nullptr, a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, EXIT_DATA, END, 0);
 #pragma omp target exit data map(from : a)
   OMPT_ASSERT_SYNC_POINT("After target exit data");
 
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, BEGIN, 0);
   // FIXME: This is currently not occuring. Is this a bug?
   // OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, X * sizeof(c));
-  OMPT_ASSERT_SEQUENCE(TargetSubmit, 1);
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, BEGIN);
+  OMPT_ASSERT_SEQUENCE(TargetSubmitEmi, 1, END);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, TARGET, END, 0);
 #pragma omp target parallel for map(alloc : c)
   {
     for (int j = 0; j < X; j++)
@@ -336,9 +424,10 @@ TEST(DataOpTests, DeclareTargetGlobalAndUpdate) {
   }
   OMPT_ASSERT_SYNC_POINT("After target parallel for");
 
-  OMPT_ASSERT_SEQUENCE(Target, UPDATE, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, X * sizeof(int), nullptr, c);
-  OMPT_ASSERT_SEQUENCE(Target, UPDATE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, X * sizeof(int), nullptr, c);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, X * sizeof(int), nullptr, c);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, END, 0);
 #pragma omp target update from(c) nowait
 #pragma omp barrier
 
@@ -353,10 +442,12 @@ TEST(DataOpTests, ExplicitAllocatorAPI) {
   const int N = 1000;
   auto DataSize = N * sizeof(int);
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
   assert(d_a != nullptr);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
   omp_target_free(d_a, omp_get_default_device());
 }
 
@@ -366,16 +457,21 @@ TEST(DataOpTests, ExplicitAllocatorAndCopyAPI) {
   const int N = 1000;
   auto DataSize = N * sizeof(int);
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, d_b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_b);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
   d_b = (int *) omp_target_alloc(DataSize, omp_get_default_device());
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, DataSize, d_a, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, BEGIN, DataSize, d_a, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, D2H, END, DataSize, d_a, d_b);
   omp_target_memcpy(d_b, d_a , DataSize , 0, 0, omp_get_default_device(), omp_get_default_device());
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0, d_b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0, d_a);
   omp_target_free(d_b, omp_get_default_device());
   omp_target_free(d_a, omp_get_default_device());
 }
@@ -388,19 +484,24 @@ TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
   p_a = (int *) malloc(DataSize);
   memset(p_a, 0, N * sizeof(int));
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_a);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ASSOCIATE, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, BEGIN, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, END, DataSize, d_a);
   omp_target_associate_ptr(p_a , d_a , DataSize, 0 , omp_get_default_device());
 
-  OMPT_ASSERT_SEQUENCE(Target, UPDATE, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, DataSize, p_a);
-  OMPT_ASSERT_SEQUENCE(Target, UPDATE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, END, 0);
   #pragma omp target update to(d_a)
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DISASSOCIATE, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, BEGIN, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, END, DataSize, d_a);
   omp_target_disassociate_ptr(d_a, omp_get_default_device());
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
   omp_target_free(d_a, omp_get_default_device());
   free(p_a);
 }
