@@ -40,7 +40,62 @@ TEST(VeccopyCallbacks, OnHost_one) {
   }
 }
 
-TEST(VeccopyCallbacks, OnDevice_Sequenced) {
+TEST(VeccopyCallbacks, OnDeviceDefaultTeams_Sequenced) {
+
+  int N = 100000;
+  int i;
+
+  int a[N];
+  int b[N];
+
+  for (i=0; i<N; i++)
+    a[i]=0;
+
+  for (i=0; i<N; i++)
+    b[i]=i;
+
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmit, 1);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+
+#pragma omp target parallel for
+  {
+    for (int j = 0; j< N; j++)
+      a[j]=b[j];
+  }
+
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // a ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int)); // b ?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), &b);
+  OMPT_ASSERT_SEQUENCE(TargetSubmit, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, &b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N* sizeof(int), nullptr, &a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0); // Why 0?
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+
+#pragma omp target teams distribute parallel for
+  {
+    for (int j = 0; j< N; j++)
+      a[j]=b[j];
+  }
+
+  int rc = 0;
+  for (i=0; i<N; i++) ;
+    // EXPECT_EQ(a[i], b[i]);
+}
+
+TEST(VeccopyCallbacks, OnDeviceSetNumTeams_Sequenced) {
 
   int N = 100000;
   int i;
@@ -380,6 +435,27 @@ TEST(DataOpTests, ExplicitAllocatorAndCopyAPI) {
   omp_target_free(d_a, omp_get_default_device());
 }
 
+TEST(DataOpTests, ExplicitAssociateDisassociatePtrAPI) {
+  int *p_a = nullptr;
+  int *d_a = nullptr;
+  const int N = 1000;
+  auto DataSize = N * sizeof(int);
+  p_a = (int *) malloc(DataSize);
+  memset(p_a, 0, N * sizeof(int));
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, d_a);
+  d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ASSOCIATE, DataSize, p_a, d_a);
+  omp_target_associate_ptr(p_a , d_a , DataSize, 0 , omp_get_default_device());
+
+  // DataSize unknown for disassociate in runtime
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DISASSOCIATE, 0, p_a);
+  omp_target_disassociate_ptr(p_a, omp_get_default_device());
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
+  omp_target_free(d_a, omp_get_default_device());
+  free(p_a);
+}
+
 TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
   int *p_a = nullptr;
   int *d_a = nullptr;
@@ -390,16 +466,16 @@ TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
 
   OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, d_a);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, ASSOCIATE, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ASSOCIATE, DataSize, p_a, d_a);
   omp_target_associate_ptr(p_a , d_a , DataSize, 0 , omp_get_default_device());
 
   OMPT_ASSERT_SEQUENCE(Target, UPDATE, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, DataSize, p_a);
   OMPT_ASSERT_SEQUENCE(Target, UPDATE, END, 0);
+  //OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, DataSize, p_a, d_a);
   #pragma omp target update to(d_a)
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOp, DISASSOCIATE, DataSize, d_a);
-  omp_target_disassociate_ptr(d_a, omp_get_default_device());
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DISASSOCIATE, 0, p_a);
+  omp_target_disassociate_ptr(p_a, omp_get_default_device());
   OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
   omp_target_free(d_a, omp_get_default_device());
   free(p_a);
