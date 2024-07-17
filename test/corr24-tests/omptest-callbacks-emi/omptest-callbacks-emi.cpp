@@ -457,9 +457,9 @@ TEST(DataOpTests, ExplicitAllocatorAndCopyAPI) {
   const int N = 1000;
   auto DataSize = N * sizeof(int);
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_b);
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_b);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
   OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_b);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
   d_b = (int *) omp_target_alloc(DataSize, omp_get_default_device());
@@ -484,7 +484,7 @@ TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
   p_a = (int *) malloc(DataSize);
   memset(p_a, 0, N * sizeof(int));
 
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
   OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_a);
   d_a = (int *) omp_target_alloc(DataSize, omp_get_default_device());
   OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, BEGIN, DataSize, d_a);
@@ -500,8 +500,8 @@ TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
   OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, BEGIN, DataSize, d_a);
   OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, END, DataSize, d_a);
   omp_target_disassociate_ptr(d_a, omp_get_default_device());
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0);
-  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0, d_a);
   omp_target_free(d_a, omp_get_default_device());
   free(p_a);
 }

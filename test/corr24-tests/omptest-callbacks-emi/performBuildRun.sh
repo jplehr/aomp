@@ -43,7 +43,7 @@ echo " >>> Clean ..."
 git clean -fdx ./${BUILD_DIR}
 
 echo " >>> Configure ..."
-cmake -B ${BUILD_DIR} -S .                                                     \
+time cmake -B ${BUILD_DIR} -S .                                                     \
 -DAOMP_DIR=${AOMP_DIR}                                                         \
 -DTGT_OFFLOAD_ARCH=${TGT_OFFLOAD_ARCH}
 
