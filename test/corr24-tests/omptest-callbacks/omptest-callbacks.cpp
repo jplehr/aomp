@@ -296,6 +296,7 @@ TEST(VeccopyCallbacks, ExplicitDefaultDevice) {
 }
 
 TEST(VeccopyCallbacks, MultipleDevices) {
+  OMPT_SUPPRESS_EVENT(EventTy::DeviceLoad);
   int N = 100000;
 
   int a[N];
@@ -310,7 +311,7 @@ TEST(VeccopyCallbacks, MultipleDevices) {
     b[i] = i;
 
 for (int dev = 0; dev < omp_get_num_devices(); ++dev) {
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, 0);
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, BEGIN, dev);
   OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), a);
   OMPT_ASSERT_SEQUENCE(TargetDataOp, H2D, N * sizeof(int), a);
   OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, N * sizeof(int), b);
@@ -320,7 +321,7 @@ for (int dev = 0; dev < omp_get_num_devices(); ++dev) {
   OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, N * sizeof(int), nullptr, a);
   OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
   OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0);
-  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, 0);
+  OMPT_ASSERT_SEQUENCE(Target, TARGET, END, dev);
 
     #pragma omp target teams distribute parallel for device(dev)
     {
@@ -481,6 +482,36 @@ TEST(DataOpTests, ExplicitAllocatorAndUpdate) {
   free(p_a);
 }
 
+TEST_XFAIL(DataOpTests, ExplicitAllocatorMultiDevice) {
+  OMPT_SUPPRESS_EVENT(EventTy::DeviceLoad);
+  int *p_d1 = nullptr;
+  int *p_d2 = nullptr;
+  const int N = 100;
+  auto DataSize = N * sizeof(int);
+
+  auto dev1 = omp_get_initial_device();
+  auto dev2 = (omp_get_initial_device() + 1) % omp_get_num_devices();
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, p_d1);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, ALLOC, DataSize, p_d2);
+  p_d1 = (int *) omp_target_alloc(DataSize, dev1);
+  p_d2 = (int *) omp_target_alloc(DataSize, dev2);
+
+  // According to specification, this should trigger an event.
+  // However, given the current implementation, this test will fail
+  // anyway and we need to look at it.
+  // OMPT_ASSERT_SEQUENCE(TargetDataOp, MEMSET, DataSize, p_d1);
+  omp_target_memset(p_d1, 0, DataSize, dev1);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, D2H, DataSize, p_d1, p_d2);
+  omp_target_memcpy(p_d2, p_d1, DataSize, 0, 0, dev2, dev1);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0, p_d1);
+  OMPT_ASSERT_SEQUENCE(TargetDataOp, DELETE, 0, p_d2);
+  omp_target_free(p_d1, dev1);
+  omp_target_free(p_d2, dev2);
+}
+
 // FIXME: Leave this suite here, so it gets discovered last and executed first.
 TEST(InitFiniSuite, DeviceLoad) {
   /* The Test Body */
@@ -491,7 +522,8 @@ TEST(InitFiniSuite, DeviceLoad) {
   int N = 128;
   int a[N];
 
-  OMPT_ASSERT_SEQUENCE(DeviceLoad, /*DeviceNum=*/0)
+  // Even on multi-GPU systems, only default-device is immediately initialized
+  OMPT_ASSERT_SEQUENCE(DeviceLoad, /*DeviceNum=*/0);
 
 #pragma omp target parallel for
   {
