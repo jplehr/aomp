@@ -2,8 +2,16 @@
 
 which clang++
 
-OMPTEST_LIB_L=../omptest-external/build
-OMPTEST_LIB_N='-lomptest -lomp'
-OMPTEST_INCLUDE=../omptest-external/include
-echo "clang++ -v -fopenmp -O2 -o manually-compiled.exe -I${OMPTEST_INCLUDE} -L${OMPTEST_LIB_L}  host.cpp ${OMPTEST_LIB_N}"
-clang++ -v -fopenmp -O2 -o manually-compiled.exe -I${OMPTEST_INCLUDE} -L${OMPTEST_LIB_L}  host.cpp ${OMPTEST_LIB_N}
+OMPTEST_BASEDIR=$(realpath -s "$(pwd)/../omptest-external")
+OMPTEST_INCLUDE=${OMPTEST_BASEDIR}/include
+OMPTEST_LIB_L=${OMPTEST_BASEDIR}/build
+OMPTEST_LIB_N='-lomptest'
+INPUT_N='host.cpp'
+OUTPUT_N='omptbench-host.exe'
+
+CFLAGS="-v -fopenmp -O2 -I${OMPTEST_INCLUDE}"
+LDFLAGS="-L${OMPTEST_LIB_L} ${OMPTEST_LIB_N}"
+LDFLAGS+=" -Wl,--disable-new-dtags -rpath ${OMPTEST_LIB_L}"
+
+export LIBRARY_PATH=${OMPTEST_LIB_L}:${LIBRARY_PATH}
+clang++ ${CFLAGS} ${INPUT_N} -o ${OUTPUT_N} ${LDFLAGS}
