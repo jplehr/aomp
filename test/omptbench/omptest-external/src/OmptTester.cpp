@@ -106,18 +106,17 @@ static ompt_set_result_t set_trace_ompt(ompt_device_t *Device) {
     return ompt_set_error;
 
   if (UseEMICallbacks) {
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
+    ompt_set_trace_ompt(Device, /*enable=*/1,
                         /*etype=*/ompt_callback_target_emi);
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
+    ompt_set_trace_ompt(Device, /*enable=*/1,
                         /*etype=*/ompt_callback_target_data_op_emi);
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
+    ompt_set_trace_ompt(Device, /*enable=*/1,
                         /*etype=*/ompt_callback_target_submit_emi);
   } else {
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
-                        /*etype=*/ompt_callback_target);
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
+    ompt_set_trace_ompt(Device, /*enable=*/1, /*etype=*/ompt_callback_target);
+    ompt_set_trace_ompt(Device, /*enable=*/1,
                         /*etype=*/ompt_callback_target_data_op);
-    ompt_set_trace_ompt(/*device=*/Device, /*enable=*/1,
+    ompt_set_trace_ompt(Device, /*enable=*/1,
                         /*etype=*/ompt_callback_target_submit);
   }
 
@@ -293,7 +292,10 @@ static void on_ompt_callback_target_data_op_emi(
     const void *codeptr_ra) {
   assert(codeptr_ra != 0 && "Unexpected null codeptr");
   // Both src and dest must not be null
-  assert((src_addr != 0 || dest_addr != 0) && "Both src and dest addr null");
+  // However, for omp_target_alloc only the END call holds a value for one of
+  // the two entries
+  if (optype != ompt_target_data_alloc)
+    assert((src_addr != 0 || dest_addr != 0) && "Both src and dest addr null");
   if (endpoint == ompt_scope_begin)
     *host_op_id = NextOpId.fetch_add(1, std::memory_order_relaxed);
   OmptCallbackHandler::get().handleTargetDataOpEmi(
@@ -422,7 +424,7 @@ int start_trace(ompt_device_t *Device) {
   if (!ompt_start_trace)
     return 0;
 
-  // This device will be traced.
+  // This device will be traced
   assert(TracedDevices->find(Device) == TracedDevices->end() &&
          "Device already present in the map");
   TracedDevices->insert(Device);
@@ -455,6 +457,12 @@ int flush_traced_devices() {
 int stop_trace(ompt_device_t *Device) {
   if (!ompt_stop_trace)
     return 0;
+
+  // This device will not be traced anymore
+  assert(TracedDevices->find(Device) != TracedDevices->end() &&
+         "Device not present in the map");
+  TracedDevices->erase(Device);
+
   return ompt_stop_trace(Device);
 }
 
