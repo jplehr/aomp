@@ -1,11 +1,3 @@
-//===ompTest/src/OmptCallbackHandler.cpp - ompTest callback handler--C++===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include "OmptCallbackHandler.h"
 
 using namespace omptest;
@@ -71,14 +63,16 @@ void OmptCallbackHandler::handleTaskCreate(
     const ompt_frame_t *EncounteringTaskFrame, ompt_data_t *NewTaskData,
     int Flags, int HasDependences, const void *CodeptrRA) {
   if (RecordAndReplay) {
-    recordEvent(OmptAssertEvent::TaskCreate("Task Create", "",
-                                            ObserveState::generated));
+    recordEvent(OmptAssertEvent::TaskCreate(
+        "Task Create", "", ObserveState::generated, EncounteringTaskData,
+        EncounteringTaskFrame, NewTaskData, Flags, HasDependences, CodeptrRA));
     return;
   }
 
   for (const auto &S : Subscribers)
-    S->notify(OmptAssertEvent::TaskCreate("Task Create", "",
-                                          ObserveState::generated));
+    S->notify(OmptAssertEvent::TaskCreate(
+        "Task Create", "", ObserveState::generated, EncounteringTaskData,
+        EncounteringTaskFrame, NewTaskData, Flags, HasDependences, CodeptrRA));
 }
 
 void OmptCallbackHandler::handleTaskSchedule(ompt_data_t *PriorTaskData,
@@ -101,16 +95,18 @@ void OmptCallbackHandler::handleImplicitTask(ompt_scope_endpoint_t Endpoint,
                                              unsigned int ActualParallelism,
                                              unsigned int Index, int Flags) {
   if (RecordAndReplay) {
-    recordEvent(OmptAssertEvent::ImplicitTask("Implicit Task", "",
-                                              ObserveState::generated));
+    recordEvent(OmptAssertEvent::ImplicitTask(
+        "Implicit Task", "", ObserveState::generated, Endpoint, ParallelData,
+        TaskData, ActualParallelism, Index, Flags));
     return;
   }
 
   return; // FIXME Is called for implicit task by main thread before test case
           // inserts asserts.
   for (const auto &S : Subscribers)
-    S->notify(OmptAssertEvent::ImplicitTask("Implicit Task", "",
-                                            ObserveState::generated));
+    S->notify(OmptAssertEvent::ImplicitTask(
+        "Implicit Task", "", ObserveState::generated, Endpoint, ParallelData,
+        TaskData, ActualParallelism, Index, Flags));
 }
 
 void OmptCallbackHandler::handleParallelBegin(
@@ -354,30 +350,83 @@ void OmptCallbackHandler::handleBufferRecord(ompt_record_ompt_t *Record) {
                                             ObserveState::generated, Record));
 }
 
-void OmptCallbackHandler::handleWorkBegin(ompt_work_t work_type,
-                                          ompt_scope_endpoint_t endpoint,
-                                          ompt_data_t *parallel_data,
-                                          ompt_data_t *task_data,
-                                          uint64_t count,
-                                          const void *codeptr_ra) {}
+void OmptCallbackHandler::handleBufferRecordDeallocation(
+    ompt_buffer_t *Buffer) {
+  if (RecordAndReplay) {
+    recordEvent(OmptAssertEvent::BufferRecordDeallocation(
+        "Buffer Deallocation", "", ObserveState::generated, Buffer));
+    return;
+  }
 
-void OmptCallbackHandler::handleWorkEnd(ompt_work_t work_type,
-                                        ompt_scope_endpoint_t endpoint,
-                                        ompt_data_t *parallel_data,
-                                        ompt_data_t *task_data, uint64_t count,
-                                        const void *codeptr_ra) {}
+  for (const auto &S : Subscribers)
+    S->notify(OmptAssertEvent::BufferRecordDeallocation(
+        "Buffer Deallocation", "", ObserveState::generated, Buffer));
+}
+
+void OmptCallbackHandler::handleWork(ompt_work_t WorkType,
+                                     ompt_scope_endpoint_t Endpoint,
+                                     ompt_data_t *ParallelData,
+                                     ompt_data_t *TaskData, uint64_t Count,
+                                     const void *CodeptrRA) {
+  if (RecordAndReplay) {
+    recordEvent(OmptAssertEvent::Work("Work", "", ObserveState::generated,
+                                      WorkType, Endpoint, ParallelData,
+                                      TaskData, Count, CodeptrRA));
+    return;
+  }
+
+  for (const auto &S : Subscribers)
+    S->notify(OmptAssertEvent::Work("Work", "", ObserveState::generated,
+                                    WorkType, Endpoint, ParallelData, TaskData,
+                                    Count, CodeptrRA));
+}
+
+void OmptCallbackHandler::handleSyncRegion(ompt_sync_region_t Kind,
+                                           ompt_scope_endpoint_t Endpoint,
+                                           ompt_data_t *ParallelData,
+                                           ompt_data_t *TaskData,
+                                           const void *CodeptrRA) {
+  if (RecordAndReplay) {
+    recordEvent(OmptAssertEvent::SyncRegion(
+        "Sync Region", "", ObserveState::generated, Kind, Endpoint,
+        ParallelData, TaskData, CodeptrRA));
+    return;
+  }
+
+  for (const auto &S : Subscribers)
+    S->notify(OmptAssertEvent::SyncRegion(
+        "Sync Region", "", ObserveState::generated, Kind, Endpoint,
+        ParallelData, TaskData, CodeptrRA));
+}
+
+void OmptCallbackHandler::handleDispatch(ompt_data_t *ParallelData,
+                                         ompt_data_t *TaskData,
+                                         ompt_dispatch_t Kind,
+                                         ompt_data_t Instance) {
+  if (RecordAndReplay) {
+    recordEvent(OmptAssertEvent::Dispatch("Dispatch", "",
+                                          ObserveState::generated, ParallelData,
+                                          TaskData, Kind, Instance));
+    return;
+  }
+
+  for (const auto &S : Subscribers)
+    S->notify(OmptAssertEvent::Dispatch("Dispatch", "", ObserveState::generated,
+                                        ParallelData, TaskData, Kind,
+                                        Instance));
+}
 
 void OmptCallbackHandler::handleAssertionSyncPoint(
-    const std::string &MarkerName) {
+    const std::string &SyncPointName) {
   if (RecordAndReplay) {
     recordEvent(OmptAssertEvent::AssertionSyncPoint(
-        "Assertion SyncPoint", "", ObserveState::generated, MarkerName));
+        "Assertion SyncPoint", "", ObserveState::generated, SyncPointName));
     return;
   }
 
   for (const auto &S : Subscribers)
     S->notify(OmptAssertEvent::AssertionSyncPoint(
-        "Assertion SyncPoint", "", ObserveState::generated, MarkerName));
+        "Assertion SyncPoint", "", ObserveState::generated, SyncPointName));
 }
 
 void OmptCallbackHandler::recordEvent(OmptAssertEvent &&Event) {

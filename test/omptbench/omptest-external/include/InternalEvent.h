@@ -1,18 +1,12 @@
-//===--ompTest/include/InternalEvent.h - ompTest internal events -- C++ -*-===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef OPENMP_LIBOMPTARGET_TEST_OMPTEST_INTERNALEVENT_H
 #define OPENMP_LIBOMPTARGET_TEST_OMPTEST_INTERNALEVENT_H
 
 #include "InternalEventCommon.h"
 
+#include <cstdint>
 #include <cstring>
 #include <limits>
+#include <omp-tools.h>
 
 #define expectedDefault(TypeName) std::numeric_limits<TypeName>::min()
 
@@ -43,11 +37,97 @@ event_class_w_custom_body(ParallelBegin,                                       \
   int NumThreads;                                                              \
 )
 event_class_w_custom_body(ParallelEnd,                                         \
-  ParallelEnd() : InternalEvent(EventTy::ParallelEnd) {}                       \
+  ParallelEnd(ompt_data_t *ParallelData, ompt_data_t *EncounteringTaskData,    \
+              int Flags, const void *CodeptrRA)                                \
+  : InternalEvent(EventTy::ParallelEnd), ParallelData(ParallelData),           \
+    EncounteringTaskData(EncounteringTaskData), Flags(Flags),                  \
+    CodeptrRA(CodeptrRA) {}                                                    \
+                                                                               \
+ompt_data_t *ParallelData;                                                     \
+ompt_data_t *EncounteringTaskData;                                             \
+int Flags;                                                                     \
+const void *CodeptrRA;                                                         \
 )
-event_class_stub(TaskCreate)
+event_class_w_custom_body(Work,                                                \
+  Work(ompt_work_t WorkType, ompt_scope_endpoint_t Endpoint,                   \
+       ompt_data_t *ParallelData, ompt_data_t *TaskData, uint64_t Count,       \
+       const void *CodeptrRA)                                                  \
+  : InternalEvent(EventTy::Work), WorkType(WorkType), Endpoint(Endpoint),      \
+  ParallelData(ParallelData), TaskData(TaskData), Count(Count),                \
+  CodeptrRA(CodeptrRA) {}                                                      \
+                                                                               \
+ompt_work_t WorkType;                                                          \
+ompt_scope_endpoint_t Endpoint;                                                \
+ompt_data_t *ParallelData;                                                     \
+ompt_data_t *TaskData;                                                         \
+uint64_t Count;                                                                \
+const void *CodeptrRA;                                                         \
+)
+event_class_w_custom_body(Dispatch,                                            \
+  Dispatch(ompt_data_t *ParallelData, ompt_data_t *TaskData,                   \
+           ompt_dispatch_t Kind, ompt_data_t Instance)                         \
+  : InternalEvent(EventTy::Dispatch), ParallelData(ParallelData),              \
+  TaskData(TaskData), Kind(Kind), Instance(Instance) {}                        \
+                                                                               \
+ompt_data_t *ParallelData;                                                     \
+ompt_data_t *TaskData;                                                         \
+ompt_dispatch_t Kind;                                                          \
+ompt_data_t Instance;                                                          \
+)
+event_class_w_custom_body(TaskCreate,                                          \
+  TaskCreate(ompt_data_t *EncounteringTaskData,                                \
+             const ompt_frame_t *EncounteringTaskFrame,                        \
+             ompt_data_t *NewTaskData, int Flags, int HasDependences,          \
+             const void *CodeptrRA)                                            \
+  : InternalEvent(EventTy::TaskCreate),                                        \
+  EncounteringTaskData(EncounteringTaskData),                                  \
+  EncounteringTaskFrame(EncounteringTaskFrame), NewTaskData(NewTaskData),      \
+  Flags(Flags), HasDependences(HasDependences), CodeptrRA(CodeptrRA) {}        \
+                                                                               \
+ompt_data_t *EncounteringTaskData;                                             \
+const ompt_frame_t *EncounteringTaskFrame;                                     \
+ompt_data_t *NewTaskData;                                                      \
+int Flags;                                                                     \
+int HasDependences;                                                            \
+const void *CodeptrRA;                                                         \
+)
+event_class_stub(Dependences)
+event_class_stub(TaskDependence)
 event_class_stub(TaskSchedule)
-event_class_stub(ImplicitTask)
+event_class_w_custom_body(ImplicitTask,                                        \
+  ImplicitTask(ompt_scope_endpoint_t Endpoint, ompt_data_t *ParallelId,        \
+               ompt_data_t *TaskId, unsigned int ActualParallelism,            \
+               unsigned int Index, int Flags)                                  \
+  : InternalEvent(EventTy::ImplicitTask), Endpoint(Endpoint),                  \
+  ParallelId(ParallelId), TaskId(TaskId), ActualParallelism(ActualParallelism),\
+  Index(Index), Flags(Flags) {}                                                \
+                                                                               \
+ompt_scope_endpoint_t Endpoint;                                                \
+ompt_data_t *ParallelId;                                                       \
+ompt_data_t *TaskId;                                                           \
+unsigned int ActualParallelism;                                                \
+unsigned int Index;                                                            \
+int Flags;                                                                     \
+)
+event_class_stub(Masked)
+event_class_w_custom_body(SyncRegion,                                          \
+  SyncRegion(ompt_sync_region_t Kind, ompt_scope_endpoint_t Endpoint,          \
+            ompt_data_t *ParallelData, ompt_data_t *TaskData,                  \
+            const void *CodeptrRA)                                             \
+  : InternalEvent(EventTy::SyncRegion), Kind(Kind), Endpoint(Endpoint),        \
+    ParallelData(ParallelData), TaskData(TaskData), CodeptrRA(CodeptrRA) {}    \
+                                                                               \
+ompt_sync_region_t Kind;                                                       \
+ompt_scope_endpoint_t Endpoint;                                                \
+ompt_data_t *ParallelData;                                                     \
+ompt_data_t *TaskData;                                                         \
+const void *CodeptrRA;                                                         \
+)
+event_class_stub(MutexAcquire)
+event_class_stub(Mutex)
+event_class_stub(NestLock)
+event_class_stub(Flush)
+event_class_stub(Cancel)
 event_class_w_custom_body(Target,                                              \
   Target(ompt_target_t Kind, ompt_scope_endpoint_t Endpoint, int DeviceNum,    \
          ompt_data_t *TaskData, ompt_id_t TargetId, const void *CodeptrRA)     \
@@ -213,6 +293,12 @@ event_class_w_custom_body(BufferRecord,                                        \
                                                                                \
   ompt_record_ompt_t Record;                                                   \
   ompt_record_ompt_t *RecordPtr;                                               \
+)
+event_class_w_custom_body(BufferRecordDeallocation,                            \
+  BufferRecordDeallocation(ompt_buffer_t *Buffer)                              \
+    : InternalEvent(EventTy::BufferRecordDeallocation), Buffer(Buffer) {}      \
+                                                                               \
+  ompt_buffer_t *Buffer;                                                       \
 )
 // clang-format on
 

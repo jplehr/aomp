@@ -1,11 +1,3 @@
-//===ompTest/src/InternalEventOperators.cpp - Internal Event Operators--C++===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include "InternalEvent.h"
 
 namespace omptest {
@@ -20,9 +12,43 @@ event_class_operator_w_body(ParallelBegin,                                     \
   return Expected.NumThreads == Observed.NumThreads;                           \
 )
 event_class_operator_stub(ParallelEnd)
+event_class_operator_w_body(Work,                                              \
+  bool isSameWorkType = (Expected.WorkType == Observed.WorkType);              \
+  bool isSameEndpoint = (Expected.Endpoint == Observed.Endpoint);              \
+  bool isSameParallelData =                                                    \
+    (Expected.ParallelData == expectedDefault(ompt_data_t *)) ?                \
+        true : (Expected.ParallelData == Observed.ParallelData);               \
+  bool isSameTaskData =                                                        \
+    (Expected.TaskData == expectedDefault(ompt_data_t *)) ?                    \
+        true : (Expected.TaskData == Observed.TaskData);                       \
+  bool isSameCount = (Expected.Count == expectedDefault(uint64_t)) ?           \
+        true : (Expected.Count == Observed.Count);                             \
+  return isSameWorkType && isSameEndpoint && isSameParallelData &&             \
+         isSameTaskData && isSameCount;                                        \
+)
+event_class_operator_stub(Dispatch)
 event_class_operator_stub(TaskCreate)
+event_class_operator_stub(Dependences)
+event_class_operator_stub(TaskDependence)
 event_class_operator_stub(TaskSchedule)
 event_class_operator_stub(ImplicitTask)
+event_class_operator_stub(Masked)
+event_class_operator_w_body(SyncRegion,                                        \
+  bool isSameKind = (Expected.Kind == Observed.Kind);                          \
+  bool isSameEndpoint = (Expected.Endpoint == Observed.Endpoint);              \
+  bool isSameParallelData =                                                    \
+    (Expected.ParallelData == expectedDefault(ompt_data_t *)) ?                \
+        true : (Expected.ParallelData == Observed.ParallelData);               \
+  bool isSameTaskData =                                                        \
+    (Expected.TaskData == expectedDefault(ompt_data_t *)) ?                    \
+        true : (Expected.TaskData == Observed.TaskData);                       \
+  return isSameKind && isSameEndpoint && isSameParallelData && isSameTaskData; \
+)
+event_class_operator_stub(MutexAcquire)
+event_class_operator_stub(Mutex)
+event_class_operator_stub(NestLock)
+event_class_operator_stub(Flush)
+event_class_operator_stub(Cancel)
 event_class_operator_w_body(Target,                                            \
   bool isSameKind = (Expected.Kind == Observed.Kind);                          \
   bool isSameEndpoint = (Expected.Endpoint == Observed.Endpoint);              \
@@ -233,6 +259,7 @@ event_class_operator_w_body(BufferRecord,                                      \
   }                                                                            \
   return isEqual;                                                              \
 )
+event_class_operator_stub(BufferRecordDeallocation)
 
 define_cast_func(AssertionSyncPoint)
 define_cast_func(AssertionSuspend)
@@ -240,9 +267,20 @@ define_cast_func(ThreadBegin)
 define_cast_func(ThreadEnd)
 define_cast_func(ParallelBegin)
 define_cast_func(ParallelEnd)
+define_cast_func(Work)
+define_cast_func(Dispatch)
 define_cast_func(TaskCreate)
+define_cast_func(Dependences)
+define_cast_func(TaskDependence)
 define_cast_func(TaskSchedule)
 define_cast_func(ImplicitTask)
+define_cast_func(Masked)
+define_cast_func(SyncRegion)
+define_cast_func(MutexAcquire)
+define_cast_func(Mutex)
+define_cast_func(NestLock)
+define_cast_func(Flush)
+define_cast_func(Cancel)
 define_cast_func(Target)
 define_cast_func(TargetEmi)
 define_cast_func(TargetDataOp)
@@ -257,6 +295,7 @@ define_cast_func(DeviceUnload)
 define_cast_func(BufferRequest)
 define_cast_func(BufferComplete)
 define_cast_func(BufferRecord)
+define_cast_func(BufferRecordDeallocation)
 
 class_equals_op(AssertionSyncPoint)
 class_equals_op(AssertionSuspend)
@@ -264,9 +303,20 @@ class_equals_op(ThreadBegin)
 class_equals_op(ThreadEnd)
 class_equals_op(ParallelBegin)
 class_equals_op(ParallelEnd)
+class_equals_op(Work)
+class_equals_op(Dispatch)
 class_equals_op(TaskCreate)
+class_equals_op(Dependences)
+class_equals_op(TaskDependence)
 class_equals_op(TaskSchedule)
 class_equals_op(ImplicitTask)
+class_equals_op(Masked)
+class_equals_op(SyncRegion)
+class_equals_op(MutexAcquire)
+class_equals_op(Mutex)
+class_equals_op(NestLock)
+class_equals_op(Flush)
+class_equals_op(Cancel)
 class_equals_op(Target)
 class_equals_op(TargetEmi)
 class_equals_op(TargetDataOp)
@@ -281,6 +331,7 @@ class_equals_op(DeviceUnload)
 class_equals_op(BufferRequest)
 class_equals_op(BufferComplete)
 class_equals_op(BufferRecord)
+class_equals_op(BufferRecordDeallocation)
 // clang-format on
 
 } // namespace internal

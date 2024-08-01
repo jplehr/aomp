@@ -1,11 +1,3 @@
-//===ompTest/src/OmptTesterStandalone.cpp - ompTest standalone impl --C++===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include "OmptTesterStandalone.h"
 #include "OmptCallbackHandler.h"
 
@@ -93,6 +85,7 @@ Registerer::Registerer(TestCase *TC, const std::string SuiteName) {
 }
 
 int Runner::run() {
+  int ErrorCount = 0;
   for (auto &TS : TestSuites) {
     std::cout << "\n======\nExecuting for " << TS.Name << std::endl;
     TS.setup();
@@ -101,12 +94,13 @@ int Runner::run() {
       if (Error Err = TC->exec()) {
         reportError(Err);
         abortOrKeepGoing();
+        ++ErrorCount;
       }
     }
     TS.teardown();
   }
   printSummary();
-  return 0;
+  return ErrorCount;
 }
 
 void Runner::reportError(const Error &Err) {}

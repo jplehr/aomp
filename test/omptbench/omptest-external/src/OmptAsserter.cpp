@@ -1,11 +1,3 @@
-//===ompTest/src/OmptAsserter.cpp - ompTest asserter implementation --C++===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include "OmptAsserter.h"
 
 #include <algorithm>
@@ -136,15 +128,27 @@ bool OmptAsserter::verifyEventGroups(const OmptAssertEvent &ExpectedEvent,
   case EventTy::ThreadEnd:
   case EventTy::ParallelBegin:
   case EventTy::ParallelEnd:
+  case EventTy::Work:
+  case EventTy::Dispatch:
   case EventTy::TaskCreate:
+  case EventTy::Dependences:
+  case EventTy::TaskDependence:
   case EventTy::TaskSchedule:
   case EventTy::ImplicitTask:
+  case EventTy::Masked:
+  case EventTy::SyncRegion:
+  case EventTy::MutexAcquire:
+  case EventTy::Mutex:
+  case EventTy::NestLock:
+  case EventTy::Flush:
+  case EventTy::Cancel:
   case EventTy::DeviceInitialize:
   case EventTy::DeviceFinalize:
   case EventTy::DeviceLoad:
   case EventTy::DeviceUnload:
   case EventTy::BufferRequest:
   case EventTy::BufferComplete:
+  case EventTy::BufferRecordDeallocation:
     return true;
   // Observed events should be part of the OpenMP spec
   case EventTy::None:
@@ -172,15 +176,16 @@ void OmptSequencedAsserter::notifyImpl(OmptAssertEvent &&AE) {
 
   if (AE.getEventType() == EventTy::AssertionSyncPoint) {
     auto NumRemainingEvents = getRemainingEventCount();
-    // Upon encountering a marker, all events should have been processed
+    // Upon encountering a SyncPoint, all events should have been processed
     if (NumRemainingEvents == 0)
       return;
 
     reportError(
-        AE, "[OmptSequencedAsserter] Encountered marker while still awaiting " +
-                std::to_string(NumRemainingEvents) + " events. Asserted " +
-                std::to_string(NumAssertSuccesses) + "/" +
-                std::to_string(Events.size()) + " events successfully.");
+        AE,
+        "[OmptSequencedAsserter] Encountered SyncPoint while still awaiting " +
+            std::to_string(NumRemainingEvents) + " events. Asserted " +
+            std::to_string(NumAssertSuccesses) + "/" +
+            std::to_string(Events.size()) + " events successfully.");
     State = AssertState::fail;
     return;
   }
@@ -281,12 +286,12 @@ void OmptEventAsserter::notifyImpl(OmptAssertEvent &&AE) {
 
   if (AE.getEventType() == EventTy::AssertionSyncPoint) {
     auto NumRemainingEvents = getRemainingEventCount();
-    // Upon encountering a marker, all events should have been processed
+    // Upon encountering a SyncPoint, all events should have been processed
     if (NumRemainingEvents == 0)
       return;
 
     reportError(
-        AE, "[OmptEventAsserter] Encountered marker while still awaiting " +
+        AE, "[OmptEventAsserter] Encountered SyncPoint while still awaiting " +
                 std::to_string(NumRemainingEvents) + " events. Asserted " +
                 std::to_string(NumAssertSuccesses) + " events successfully.");
     State = AssertState::fail;

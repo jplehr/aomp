@@ -1,11 +1,3 @@
-//===ompTest/src/OmptTester.cpp - ompTest globals impl --C++===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #include "OmptTester.h"
 
 #include <atomic>
@@ -56,12 +48,6 @@ typedef std::unordered_set<ompt_device_t *> OmptDeviceSetTy;
 typedef std::unique_ptr<OmptDeviceSetTy> OmptDeviceSetPtrTy;
 static OmptDeviceSetPtrTy TracedDevices;
 
-// Tracing buffer helper function
-static void delete_buffer_ompt(ompt_buffer_t *buffer) {
-  free(buffer);
-  printf("Deallocated %p\n", buffer);
-}
-
 // OMPT callbacks
 
 // Trace record callbacks
@@ -97,8 +83,10 @@ static void on_ompt_callback_buffer_complete(
     Status = ompt_advance_buffer_cursor(/*device=*/NULL, buffer, bytes,
                                         CurrentPos, &CurrentPos);
   }
-  if (buffer_owned)
-    delete_buffer_ompt(buffer);
+  if (buffer_owned) {
+    OmptCallbackHandler::get().handleBufferRecordDeallocation(buffer);
+    free(buffer);
+  }
 }
 
 static ompt_set_result_t set_trace_ompt(ompt_device_t *Device) {
@@ -183,13 +171,25 @@ static void on_ompt_callback_work(ompt_work_t work_type,
                                   ompt_data_t *parallel_data,
                                   ompt_data_t *task_data, uint64_t count,
                                   const void *codeptr_ra) {
-  if (endpoint == ompt_scope_begin || endpoint == ompt_scope_beginend)
-    OmptCallbackHandler::get().handleWorkBegin(
-        work_type, endpoint, parallel_data, task_data, count, codeptr_ra);
+  OmptCallbackHandler::get().handleWork(work_type, endpoint, parallel_data,
+                                        task_data, count, codeptr_ra);
+}
 
-  if (endpoint == ompt_scope_end || endpoint == ompt_scope_beginend)
-    OmptCallbackHandler::get().handleWorkEnd(work_type, endpoint, parallel_data,
-                                             task_data, count, codeptr_ra);
+static void on_ompt_callback_dispatch(ompt_data_t *parallel_data,
+                                      ompt_data_t *task_data,
+                                      ompt_dispatch_t kind,
+                                      ompt_data_t instance) {
+  OmptCallbackHandler::get().handleDispatch(parallel_data, task_data, kind,
+                                            instance);
+}
+
+static void on_ompt_callback_sync_region(ompt_sync_region_t kind,
+                                         ompt_scope_endpoint_t endpoint,
+                                         ompt_data_t *parallel_data,
+                                         ompt_data_t *task_data,
+                                         const void *codeptr_ra) {
+  OmptCallbackHandler::get().handleSyncRegion(kind, endpoint, parallel_data,
+                                              task_data, codeptr_ra);
 }
 
 /////// DEVICE-RELATED //////
@@ -371,10 +371,20 @@ int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
   register_ompt_callback(ompt_callback_thread_end);
   register_ompt_callback(ompt_callback_parallel_begin);
   register_ompt_callback(ompt_callback_parallel_end);
+  register_ompt_callback(ompt_callback_work);
+  // register_ompt_callback(ompt_callback_dispatch);
   register_ompt_callback(ompt_callback_task_create);
+  // register_ompt_callback(ompt_callback_dependences);
+  // register_ompt_callback(ompt_callback_task_dependence);
   register_ompt_callback(ompt_callback_task_schedule);
   register_ompt_callback(ompt_callback_implicit_task);
-  register_ompt_callback(ompt_callback_work);
+  // register_ompt_callback(ompt_callback_masked);
+  register_ompt_callback(ompt_callback_sync_region);
+  // register_ompt_callback(ompt_callback_mutex_acquire);
+  // register_ompt_callback(ompt_callback_mutex);
+  // register_ompt_callback(ompt_callback_nestLock);
+  // register_ompt_callback(ompt_callback_flush);
+  // register_ompt_callback(ompt_callback_cancel);
   register_ompt_callback(ompt_callback_device_initialize);
   register_ompt_callback(ompt_callback_device_finalize);
   register_ompt_callback(ompt_callback_device_load);

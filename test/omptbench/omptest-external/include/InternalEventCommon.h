@@ -1,11 +1,3 @@
-//===-- ompTest/include/InternalEventCommon.hh - internal events -- C++--===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef OPENMP_LIBOMPTARGET_TEST_OMPTEST_INTERNALEVENTCOMMON_H
 #define OPENMP_LIBOMPTARGET_TEST_OMPTEST_INTERNALEVENTCOMMON_H
 
@@ -20,30 +12,42 @@ namespace internal {
 /// Enum values are used for comparison of observed and asserted events
 /// List is based on OpenMP 5.2 specification, table 19.2 (page 447)
 enum class EventTy {
-  None,               // not part of OpenMP spec, used for implementation
-  AssertionSyncPoint, // not part of OpenMP spec, used for implementation
-  AssertionSuspend,   // not part of OpenMP spec, used for implementation
-  BufferRecord,       // not part of OpenMP spec, used for implementation
+  None,                     // not part of OpenMP spec, used for implementation
+  AssertionSyncPoint,       // not part of OpenMP spec, used for implementation
+  AssertionSuspend,         // not part of OpenMP spec, used for implementation
+  BufferRecord,             // not part of OpenMP spec, used for implementation
+  BufferRecordDeallocation, // not part of OpenMP spec, used for implementation
   ThreadBegin,
   ThreadEnd,
   ParallelBegin,
   ParallelEnd,
-  TaskCreate,
-  TaskSchedule,
-  ImplicitTask,
-  Target,
-  TargetEmi,
-  TargetDataOp,
-  TargetDataOpEmi,
-  TargetSubmit,
-  TargetSubmitEmi,
-  ControlTool,
+  Work,
+  Dispatch,       // TODO: Implement
+  TaskCreate,     // TODO: Implement
+  Dependences,    // TODO: Implement
+  TaskDependence, // TODO: Implement
+  TaskSchedule,   // TODO: Implement
+  ImplicitTask,   // TODO: Implement
+  Masked,         // TODO: Implement
+  SyncRegion,
+  MutexAcquire, // TODO: Implement
+  Mutex,        // TODO: Implement
+  NestLock,     // TODO: Implement
+  Flush,        // TODO: Implement
+  Cancel,       // TODO: Implement
   DeviceInitialize,
   DeviceFinalize,
   DeviceLoad,
   DeviceUnload,
   BufferRequest,
-  BufferComplete
+  BufferComplete,
+  TargetDataOp,
+  TargetDataOpEmi,
+  Target,
+  TargetEmi,
+  TargetSubmit,
+  TargetSubmitEmi,
+  ControlTool
 };
 
 struct InternalEvent {

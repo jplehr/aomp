@@ -1,11 +1,3 @@
-//===-- ompTest/include/OmptAssertEvent.h - omptest assert event -- C++--===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef OPENMP_LIBOMPTARGET_TEST_OMPTEST_OMPTASSERTEVENT_H
 #define OPENMP_LIBOMPTARGET_TEST_OMPTEST_OMPTASSERTEVENT_H
 
@@ -13,6 +5,7 @@
 #include "omp-tools.h"
 
 #include <cassert>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -26,7 +19,7 @@ struct OmptAssertEvent {
   static OmptAssertEvent AssertionSyncPoint(const std::string &Name,
                                             const std::string &Group,
                                             const ObserveState &Expected,
-                                            const std::string &MarkerName);
+                                            const std::string &SyncPointName);
 
   static OmptAssertEvent AssertionSuspend(const std::string &Name,
                                           const std::string &Group,
@@ -46,21 +39,62 @@ struct OmptAssertEvent {
                                        const ObserveState &Expected,
                                        int NumThreads);
 
-  static OmptAssertEvent ParallelEnd(const std::string &Name,
-                                     const std::string &Group,
-                                     const ObserveState &Expected);
+  static OmptAssertEvent ParallelEnd(
+      const std::string &Name, const std::string &Group,
+      const ObserveState &Expected,
+      ompt_data_t *ParallelData = expectedDefault(ompt_data_t *),
+      ompt_data_t *EncounteringTaskData = expectedDefault(ompt_data_t *),
+      int Flags = expectedDefault(int),
+      const void *CodeptrRA = expectedDefault(const void *));
 
-  static OmptAssertEvent TaskCreate(const std::string &Name,
-                                    const std::string &Group,
-                                    const ObserveState &Expected);
+  static OmptAssertEvent
+  Work(const std::string &Name, const std::string &Group,
+       const ObserveState &Expected, ompt_work_t WorkType,
+       ompt_scope_endpoint_t Endpoint,
+       ompt_data_t *ParallelData = expectedDefault(ompt_data_t *),
+       ompt_data_t *TaskData = expectedDefault(ompt_data_t *),
+       uint64_t Count = expectedDefault(uint64_t),
+       const void *CodeptrRA = expectedDefault(const void *));
+
+  static OmptAssertEvent
+  Dispatch(const std::string &Name, const std::string &Group,
+           const ObserveState &Expected,
+           ompt_data_t *ParallelData = expectedDefault(ompt_data_t *),
+           ompt_data_t *TaskData = expectedDefault(ompt_data_t *),
+           ompt_dispatch_t Kind = expectedDefault(ompt_dispatch_t),
+           ompt_data_t Instance = expectedDefault(ompt_data_t));
+
+  static OmptAssertEvent
+  TaskCreate(const std::string &Name, const std::string &Group,
+             const ObserveState &Expected,
+             ompt_data_t *EncounteringTaskData = expectedDefault(ompt_data_t *),
+             const ompt_frame_t *EncounteringTaskFrame =
+                 expectedDefault(ompt_frame_t *),
+             ompt_data_t *NewTaskData = expectedDefault(ompt_data_t *),
+             int Flags = expectedDefault(int),
+             int HasDependences = expectedDefault(int),
+             const void *CodeptrRA = expectedDefault(const void *));
 
   static OmptAssertEvent TaskSchedule(const std::string &Name,
                                       const std::string &Group,
                                       const ObserveState &Expected);
 
-  static OmptAssertEvent ImplicitTask(const std::string &Name,
-                                      const std::string &Group,
-                                      const ObserveState &Expected);
+  static OmptAssertEvent
+  ImplicitTask(const std::string &Name, const std::string &Group,
+               const ObserveState &Expected, ompt_scope_endpoint_t Endpoint,
+               ompt_data_t *ParallelId = expectedDefault(ompt_data_t *),
+               ompt_data_t *TaskId = expectedDefault(ompt_data_t *),
+               unsigned int ActualParallelism = expectedDefault(unsigned int),
+               unsigned int Index = expectedDefault(unsigned int),
+               int Flags = expectedDefault(int));
+
+  static OmptAssertEvent
+  SyncRegion(const std::string &Name, const std::string &Group,
+             const ObserveState &Expected, ompt_sync_region_t Kind,
+             ompt_scope_endpoint_t Endpoint,
+             ompt_data_t *ParallelData = expectedDefault(ompt_data_t *),
+             ompt_data_t *TaskData = expectedDefault(ompt_data_t *),
+             const void *CodeptrRA = expectedDefault(const void *));
 
   static OmptAssertEvent
   Target(const std::string &Name, const std::string &Group,
@@ -253,6 +287,11 @@ struct OmptAssertEvent {
       unsigned int GrantedNumTeams = expectedDefault(unsigned int),
       ompt_id_t TargetId = expectedDefault(ompt_id_t),
       ompt_id_t HostOpId = expectedDefault(ompt_id_t));
+
+  static OmptAssertEvent BufferRecordDeallocation(const std::string &Name,
+                                                  const std::string &Group,
+                                                  const ObserveState &Expected,
+                                                  ompt_buffer_t *Buffer);
 
   /// Allow move construction (due to std::unique_ptr)
   OmptAssertEvent(OmptAssertEvent &&o) = default;
