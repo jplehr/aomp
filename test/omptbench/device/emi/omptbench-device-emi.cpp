@@ -15,6 +15,7 @@ TEST(VeccopyCallbacks, OnDevice_Sequenced) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int N = 100000;
   int i;
@@ -96,6 +97,7 @@ TEST(VeccopyCallbacks, OnDevice_SequencedGrouped) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   // Define testcase variables before events, so we can refer to them.
   int N = 100000;
@@ -253,6 +255,7 @@ TEST(VeccopyCallbacks, ExplicitDefaultDevice) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int N = 100000;
 
@@ -306,6 +309,7 @@ TEST(VeccopyCallbacks, MultipleDevices) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int N = 100000;
 
@@ -364,6 +368,7 @@ TEST(DataOpCallbacks, DeclareTargetGlobalAndUpdate) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int a[X];
   int b[X];
@@ -451,6 +456,7 @@ TEST(DataOpCallbacks, ExplicitAllocatorAPI) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int *d_a = nullptr;
   const int N = 1000;
@@ -469,6 +475,7 @@ TEST(DataOpCallbacks, ExplicitAllocatorAndCopyAPI) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int *d_a = nullptr;
   int *d_b = nullptr;
@@ -495,10 +502,11 @@ TEST(DataOpCallbacks, ExplicitAllocatorAndCopyAPI) {
   omp_target_free(d_a, omp_get_default_device());
 }
 
-TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate) {
+TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate_NoDataOp) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int *p_a = nullptr;
   int *d_a = nullptr;
@@ -517,9 +525,7 @@ TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate) {
   omp_target_associate_ptr(p_a, d_a, DataSize, 0, DefaultDeviceNum);
 
   OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, BEGIN, DefaultDeviceNum);
-  // TODO is "no data operation" what one *should* expect?
-  // OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, DataSize, p_a);
-  // OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, DataSize, p_a);
+  // No data operation: Compiler cannot deduce size
   OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, END, DefaultDeviceNum);
 #pragma omp target update to(d_a)
 
@@ -533,6 +539,79 @@ TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate) {
   free(p_a);
 }
 
+TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate_DataOp) {
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
+
+  int *p_a = nullptr;
+  int *d_a = nullptr;
+  int DefaultDeviceNum = omp_get_default_device();
+  const int N = 1000;
+  auto DataSize = N * sizeof(int);
+  p_a = (int *)malloc(DataSize);
+  memset(p_a, 0, N * sizeof(int));
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_a);
+  d_a = (int *)omp_target_alloc(DataSize, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, BEGIN, DataSize, p_a, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, END, DataSize, p_a, d_a);
+  omp_target_associate_ptr(p_a, d_a, DataSize, 0, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, BEGIN, DefaultDeviceNum);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, END, DefaultDeviceNum);
+#pragma omp target update to(p_a[0:N])
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, BEGIN, 0, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, END, 0, p_a);
+  omp_target_disassociate_ptr(p_a, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0, d_a);
+  omp_target_free(d_a, DefaultDeviceNum);
+  free(p_a);
+}
+
+TEST(DataOpCallbacks, ExplicitAllocatorAndUpdate_DataOpStack) {
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
+
+  const int N = 1000;
+  int p_a[N];
+  int *d_a = nullptr;
+  int DefaultDeviceNum = omp_get_default_device();
+  auto DataSize = N * sizeof(int);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, BEGIN, DataSize);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ALLOC, END, DataSize, d_a);
+  d_a = (int *)omp_target_alloc(DataSize, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, BEGIN, DataSize, p_a, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, ASSOCIATE, END, DataSize, p_a, d_a);
+  omp_target_associate_ptr(p_a, d_a, DataSize, 0, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, BEGIN, DefaultDeviceNum);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, BEGIN, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, H2D, END, DataSize, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetEmi, UPDATE, END, DefaultDeviceNum);
+#pragma omp target update to(p_a)
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, BEGIN, 0, p_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DISASSOCIATE, END, 0, p_a);
+  omp_target_disassociate_ptr(p_a, DefaultDeviceNum);
+
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, BEGIN, 0, d_a);
+  OMPT_ASSERT_SEQUENCE(TargetDataOpEmi, DELETE, END, 0, d_a);
+  omp_target_free(d_a, DefaultDeviceNum);
+}
+
 TEST(VeccopyTraces, OnDeviceBufferRecord_parallel_for) {
   OMPT_SUPPRESS_EVENT(EventTy::DeviceLoad);
   OMPT_SUPPRESS_EVENT(EventTy::TargetEmi);
@@ -540,6 +619,7 @@ TEST(VeccopyTraces, OnDeviceBufferRecord_parallel_for) {
   OMPT_SUPPRESS_EVENT(EventTy::TargetDataOpEmi);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
 
@@ -576,6 +656,8 @@ TEST(VeccopyTraces, OnDeviceBufferRecord_parallel_for) {
 
 TEST(VeccopyTraces, OnDeviceCallbacks_parallel_for) {
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
+
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   OMPT_ASSERT_SET_MODE_RELAXED();
 
@@ -637,6 +719,7 @@ TEST(VeccopyTraces, OnDeviceBufferRecord_teams_distribute_parallel_for) {
   OMPT_SUPPRESS_EVENT(EventTy::TargetDataOpEmi);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
 
@@ -732,6 +815,7 @@ TEST(VeccopyTraces, OnDeviceBufferRecord_teams_distribute_parallel_for_nowait) {
   OMPT_SUPPRESS_EVENT(EventTy::TargetDataOpEmi);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
 
@@ -766,6 +850,8 @@ TEST(VeccopyTraces, OnDeviceBufferRecord_teams_distribute_parallel_for_nowait) {
 
 TEST(VeccopyTraces, OnDeviceCallbacks_teams_distribute_parallel_for_nowait) {
   OMPT_PERMIT_EVENT(EventTy::BufferRecord);
+
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   OMPT_ASSERT_SET_MODE_RELAXED();
 
@@ -829,6 +915,7 @@ TEST(InitFiniSuite, DeviceLoad) {
   OMPT_SUPPRESS_EVENT(EventTy::BufferRequest);
   OMPT_SUPPRESS_EVENT(EventTy::BufferComplete);
   OMPT_SUPPRESS_EVENT(EventTy::BufferRecord);
+  OMPT_SUPPRESS_EVENT(EventTy::BufferRecordDeallocation);
 
   int N = 128;
   int a[N];

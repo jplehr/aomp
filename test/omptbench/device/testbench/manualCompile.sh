@@ -6,8 +6,8 @@ OMPTEST_BASEDIR=$(realpath -s "$(pwd)/../../omptest-external")
 OMPTEST_INCLUDE=${OMPTEST_BASEDIR}/include
 OMPTEST_LIB_L=${OMPTEST_BASEDIR}/build
 OMPTEST_LIB_N='-lomptest'
-INPUT_N='omptbench-device-emi.cpp'
-OUTPUT_N='omptbench-device-emi.exe'
+INPUT_N='omptbench-testbench.cpp'
+OUTPUT_N='testbench.exe'
 
 INSTALLED_GPU=$(amdgpu-arch | grep -m 1 -E gfx[^0]{1}.{2})
 OFFLOAD_ARCH="--offload-arch=${INSTALLED_GPU}"
@@ -20,11 +20,11 @@ export LIBRARY_PATH=${OMPTEST_LIB_L}:${LIBRARY_PATH}
 clang++ ${CFLAGS} ${INPUT_N} -o ${OUTPUT_N} ${LDFLAGS}
 
 # Run using:
-# EC=$?
-# if [ $EC -ne 0 ]; then
-#   exit $EC
-# fi
-# export OMPTEST_USE_OMPT_EMI=1
-# export OMPTEST_USE_OMPT_TRACING=1
-# export OMPTEST_RUN_AS_TESTSUITE=1
-# ./${OUTPUT_N}
+EC=$?
+if [ $EC -ne 0 ]; then
+  exit $EC
+fi
+export OMPTEST_USE_OMPT_EMI=1
+export OMPTEST_USE_OMPT_TRACING=1
+export OMPTEST_RUN_AS_TESTSUITE=1
+./${OUTPUT_N}

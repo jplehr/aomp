@@ -15,3 +15,13 @@ LDFLAGS+=" -Wl,--disable-new-dtags -rpath ${OMPTEST_LIB_L}"
 
 export LIBRARY_PATH=${OMPTEST_LIB_L}:${LIBRARY_PATH}
 clang++ ${CFLAGS} ${INPUT_N} -o ${OUTPUT_N} ${LDFLAGS}
+
+# Run using:
+# EC=$?
+# if [ $EC -ne 0 ]; then
+#   exit $EC
+# fi
+# export OMPTEST_USE_OMPT_EMI=0
+# export OMPTEST_USE_OMPT_TRACING=0
+# export OMPTEST_RUN_AS_TESTSUITE=1
+# ./${OUTPUT_N}
