@@ -38,12 +38,10 @@ TEST(WorkDistribution, SingleParallelFor) {
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
   OMPT_GENERATE_EVENTS(numThreads-1, OMPT_ASSERT_SET(ThreadBegin, ompt_thread_worker));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads-3, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, END));
-  // OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
-  // OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 #pragma omp parallel for
@@ -76,10 +74,10 @@ TEST(WorkDistribution, SingleParallelForNumThreadsClause) {
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 #pragma omp parallel for num_threads(numThreads)
@@ -111,16 +109,17 @@ TEST(WorkDistribution, SingleParallelForWithSingleSection){
     b[i]=i;
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
   OMPT_GENERATE_EVENTS(1, OMPT_ASSERT_SET(Work, WORK_EXEC, BEGIN));
   OMPT_GENERATE_EVENTS(1, OMPT_ASSERT_SET(Work, WORK_EXEC, END));
   OMPT_GENERATE_EVENTS(numThreads-1, OMPT_ASSERT_SET(Work, WORK_SINGLE, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads-1, OMPT_ASSERT_SET(Work, WORK_SINGLE, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 #pragma omp parallel
@@ -158,19 +157,20 @@ TEST(WorkDistribution, SingleParallelWithScopeSection) {
     b[i]=i;
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_SCOPE, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_SCOPE, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 #pragma omp parallel
   {
-    // FIXME: ICE in AOMP 18.0-1
+      // FIXME: ICE in AOMP 18.0-1, Error message in AOMP 19.0-3
       // #pragma omp scope
       {
         c = 666;
@@ -197,13 +197,14 @@ TEST(WorkDistribution, SingleParallelOneSectionsTwoSection) {
   int b[100];
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_WORKSHARE, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_SECT, BEGIN));
   /// TODO: Here we would have dispatch Callbacks with ompt_dispatch_section kind
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_SECT, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 
@@ -243,14 +244,14 @@ TEST(WorkDistribution, SingleParallelForStaticSchedule) {
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_STA, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 
-  #pragma omp parallel for schedule(static)
+  #pragma omp parallel for schedule(static) num_threads(numThreads)
   {
     for (int j = 0; j < N; j++)
       a[j]=b[j] + 1;
@@ -274,10 +275,10 @@ TEST(WorkDistribution, SingleParallelForDynamicSchedule) {
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_DYN, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_DYN, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 
@@ -304,14 +305,14 @@ TEST(WorkDistribution, SingleParallelForGuidedSchedule) {
 
   OMPT_ASSERT_SET(ParallelBegin, numThreads);
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, BEGIN));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, END));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, BEGIN));
+  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL_PARALLEL, END));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_GUI, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(Work, WORK_LOOP_GUI, END));
-  OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(SyncRegion, SR_BARRIER_IMPL, BEGIN));
   OMPT_GENERATE_EVENTS(numThreads, OMPT_ASSERT_SET(ImplicitTask, END));
   OMPT_ASSERT_SET(ParallelEnd, nullptr);
 
-  #pragma omp parallel for schedule(guided) num_threads(numThreads)
+  #pragma omp parallel for schedule(guided) // num_threads(numThreads)
   {
     for (int j = 0; j < N; j++)
       a[j]=b[j] + 1;
