@@ -101,8 +101,6 @@ void OmptCallbackHandler::handleImplicitTask(ompt_scope_endpoint_t Endpoint,
     return;
   }
 
-  return; // FIXME Is called for implicit task by main thread before test case
-          // inserts asserts.
   for (const auto &S : Subscribers)
     S->notify(OmptAssertEvent::ImplicitTask(
         "Implicit Task", "", ObserveState::generated, Endpoint, ParallelData,

@@ -2,6 +2,8 @@
 
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <sys/types.h>
 
 using namespace omptest;
 
@@ -112,7 +114,13 @@ std::string internal::TaskCreate::toString() const {
 }
 
 std::string internal::ImplicitTask::toString() const {
-  std::string S{"OMPT Callback ImplicitTask"};
+  std::string S{"OMPT Callback ImplicitTask: "};
+  S.append(" endpoint=").append(std::to_string(Endpoint));
+  S.append(" parallel_data=").append(makeHexString((uint64_t)ParallelId));
+  S.append(" task_data=").append(makeHexString((uint64_t) TaskId));
+  S.append(" actual_parallelism=").append(std::to_string(ActualParallelism));
+  S.append(" index=").append(std::to_string(Index));
+  S.append(" flags=").append(std::to_string(Flags));
   return S;
 }
 

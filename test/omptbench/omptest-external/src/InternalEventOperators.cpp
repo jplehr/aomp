@@ -31,7 +31,15 @@ event_class_operator_stub(TaskCreate)
 event_class_operator_stub(Dependences)
 event_class_operator_stub(TaskDependence)
 event_class_operator_stub(TaskSchedule)
-event_class_operator_stub(ImplicitTask)
+event_class_operator_w_body(ImplicitTask,                                      \
+  bool isSameEndpoint = (Expected.Endpoint == Observed.Endpoint);              \
+  bool isSameActualParallelism =                                               \
+    (Expected.ActualParallelism == expectedDefault(unsigned int)) ?            \
+        true : (Expected.ActualParallelism == Observed.ActualParallelism);     \
+  bool isSameIndex = (Expected.Index == expectedDefault(unsigned int)) ?       \
+        true : ( Expected.Index == Observed.Index);                            \
+  return isSameEndpoint && isSameActualParallelism && isSameIndex;             \
+)
 event_class_operator_stub(Masked)
 event_class_operator_w_body(SyncRegion,                                        \
   bool isSameKind = (Expected.Kind == Observed.Kind);                          \
