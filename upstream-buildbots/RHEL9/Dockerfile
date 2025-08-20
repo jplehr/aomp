@@ -1,5 +1,8 @@
 FROM registry.access.redhat.com/ubi9/ubi:9.4
 
+ARG UID=1000
+ARG GID=1000
+
 # ROCm release we want to run
 COPY rocm-6.3.repo /etc/yum.repos.d/rocm.repo
 RUN yum clean packages && yum clean all
@@ -17,4 +20,5 @@ RUN yum install --disableplugin=subscription-manager -y rocm-device-libs rocm-co
 RUN groupmod -g 109 render
 
 # Create buildbot worker user inside the container
-RUN useradd --create-home -G video,render --shell /bin/bash botworker
+RUN groupadd -g ${GID} botworker \
+    && useradd -m -u ${UID} -g ${GID} --create-home -G video,render --shell /bin/bash botworker

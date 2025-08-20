@@ -1,5 +1,8 @@
 FROM ubuntu:jammy
 
+ARG UID=1000
+ARG GID=1000
+
 # Install prereqs
 COPY prerequisites /tmp/prerequisites
 
@@ -22,7 +25,8 @@ RUN groupadd --gid 109 render
 RUN groupmod -g 109 render
 
 # Create buildbot worker user inside the container
-RUN useradd --create-home -G video,render --shell /bin/bash botworker
+RUN groupadd -g ${GID} botworker \
+    && useradd -m -u ${UID} -g ${GID} --create-home -G video,render --shell /bin/bash botworker
 
 # This is required for offload tests to find libhsa and function correctly
 ENV LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
