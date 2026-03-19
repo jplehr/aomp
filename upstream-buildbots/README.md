@@ -9,8 +9,10 @@ We build the containers with a docker invocation adjacent to
 
 ```
 cd Ubu22
-sudo docker build -t upstreamimages/<OS>/<version>:date -f Dockerfile .
+sudo docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) -t upstreamimages/<OS>/<version>:date -f Dockerfile .
 ```
+
+The `USER_ID` and `GROUP_ID` build arguments map the `botworker` user inside the container to match your host user, avoiding permission issues with mounted volumes. If not specified, they default to 1000.
 
 For starting the container we use different CPU sets to place multiple containers on a single physical node.
 A manual start of the container should look similar to
@@ -22,9 +24,11 @@ sudo docker run --rm -it --network=host --device=/dev/kfd --device=/dev/dri --gr
 ## Assumptions / Requirements
 - The images require a working AMDGPU dkms / KFD to be installed in order to test work on the GPU.
 - The images assume a group id for the `render` group of `109`.
-- This is currently hardcoded in the Dockerfile.
-  If this does apply on your system, please go ahead and change that accordingly.
+  This is currently hardcoded in the Dockerfile.
+  If this does not apply on your system, please change that accordingly.
   Check the group id on your machine via `cat /etc/group | grep render`.
+- The `botworker` user UID/GID can be customized at build time using `--build-arg USER_ID` and `--build-arg GROUP_ID`.
+  This is recommended when mounting host directories to avoid permission mismatches.
 - The CMake cache file sets individual timeouts per test case.
   This requires the `psutil` Python module to be installed, which is done through ansible on the buildbots.
   When running the container manually, you can install it via `python3 -m pip install psutil`.

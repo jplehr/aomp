@@ -21,8 +21,12 @@ RUN apt-get install -y rocm-device-libs rocm-core rocminfo hsa-rocr-dev
 RUN groupadd --gid 109 render
 RUN groupmod -g 109 render
 
+# Accept user and group IDs as build arguments
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 # Create buildbot worker user inside the container
-RUN useradd --create-home -G video,render --shell /bin/bash botworker
+RUN useradd --create-home --uid "${USER_ID}" --gid "${GROUP_ID}" -G video,render --shell /bin/bash botworker
 
 # This is required for offload tests to find libhsa and function correctly
 ENV LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
