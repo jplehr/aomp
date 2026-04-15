@@ -91,6 +91,19 @@ else
   cd ..
 fi
 
+# Determine clang major version for device libs path
+CLANG_VERSION=$("${AOMP}"/bin/clang --version | grep -oP 'version \K[0-9]+' | head -1)
+if [ -z "$CLANG_VERSION" ]; then
+  CLANG_VERSION=${AOMP_MAJOR_VERSION:-23}
+fi
+
+# Set AMD device libs path for HIP compilation
+HIP_DEVICE_LIB_PATH="${AOMP}/lib/llvm/lib/clang/${CLANG_VERSION}/lib/amdgcn/bitcode"
+export HIP_DEVICE_LIB_PATH
+
+# Also set AMDDeviceLibs_DIR for CMake to find device libs config
+export AMDDeviceLibs_DIR="${AOMP}/lib/cmake/AMDDeviceLibs/"
+
 echo "Configuring build with CMake..."
 if [ "${DoConfigure}" == "yes" ]; then
   rm -rf "${LLAMA_BUILD_DIR}"
