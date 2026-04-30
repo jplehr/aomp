@@ -29,20 +29,39 @@ jobs:
       - name: Run shellcheck
         run: |
           shellcheck_status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            if [[ $file == *.sh ]] || [[ $(file "$file") =~ "shell script" ]]; then
-              file_dir=$(dirname "$file")
-              file_name=$(basename "$file")
+          # Read files into array safely
+          IFS=$'\n' read -r -d '' -a files < <(echo "${{ steps.changed-files.outputs.all_changed_files }}" && printf '\0')
 
-              echo "Running shellcheck on $file in directory $file_dir"
-              pushd "$file_dir" || exit 1
+          for file in "${files[@]}"; do
+            # Validate file path - reject suspicious patterns
+            if [[ "$file" =~ \$\( ]] || [[ "$file" =~ \` ]] || [[ "$file" =~ \.\. ]]; then
+              echo "ERROR: Suspicious filename detected: $file" >&2
+              exit 1
+            fi
 
-              if ! shellcheck -x "$file_name"; then
+            # Check if file exists and is a regular file
+            if [[ ! -f "$file" ]]; then
+              echo "WARNING: File not found or not a regular file: $file" >&2
+              continue
+            fi
+
+            # Check file extension or type safely
+            if [[ "$file" == *.sh ]] || file -- "$file" | grep -q "shell script"; then
+              file_dir=$(dirname -- "$file")
+              file_name=$(basename -- "$file")
+              # Use printf instead of echo to avoid interpretation
+              printf 'Running shellcheck on %s in directory %s\n' "$file" "$file_dir"
+              # Use absolute path or validate directory
+              if [[ ! -d "$file_dir" ]]; then
+                echo "ERROR: Invalid directory: $file_dir" >&2
+                exit 1
+              fi
+              pushd -- "$file_dir" > /dev/null || exit 1
+              if ! shellcheck -x -- "$file_name"; then
                 shellcheck_status=1
               fi
-
-              popd || exit 1
+              popd > /dev/null || exit 1
             fi
           done
-          exit $shellcheck_status
+          exit "$shellcheck_status"
         shell: bash {0}
