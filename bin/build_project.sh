@@ -145,9 +145,11 @@ MYCMAKEOPTS=(-DCMAKE_BUILD_TYPE="$BUILD_TYPE"
 
 if [ -f "$AOMP_REPOS/$AOMP_PROJECT_REPO_NAME/openmp/device/CMakeLists.txt" ]; then
   MYCMAKEOPTS=("${MYCMAKEOPTS[@]}"
-               -DLLVM_RUNTIME_TARGETS='default;amdgcn-amd-amdhsa'
+               -DLLVM_RUNTIME_TARGETS='default;amdgcn-amd-amdhsa;spirv64-amd-amdhsa'
                -DRUNTIMES_amdgcn-amd-amdhsa_LLVM_ENABLE_RUNTIMES='compiler-rt;libc;libcxx;libcxxabi;flang-rt;openmp'
-               -DRUNTIMES_amdgcn-amd-amdhsa_LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON)
+               -DRUNTIMES_amdgcn-amd-amdhsa_LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
+               -DRUNTIMES_spirv64-amd-amdhsa_LLVM_ENABLE_RUNTIMES='openmp'
+               -DRUNTIMES_spirv64-amd-amdhsa_LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON)
 fi
 
 # -DCLANG_LINK_FLANG_LEGACY=ON
@@ -161,10 +163,12 @@ MYCMAKEOPTS=("${MYCMAKEOPTS[@]}"
              -DLLVM_ENABLE_RUNTIMES="$LLVM_RUNTIMES"
              -DLIBCXX_ENABLE_STATIC=ON
              -DLIBCXXABI_ENABLE_STATIC=ON
-             -DLLVM_RUNTIME_TARGETS="default;amdgcn-amd-amdhsa"
+             -DLLVM_RUNTIME_TARGETS="default;amdgcn-amd-amdhsa;spirv64-amd-amdhsa"
              -DRUNTIMES_amdgcn-amd-amdhsa_FLANG_RT_LIBC_PROVIDER=llvm
              -DRUNTIMES_amdgcn-amd-amdhsa_FLANG_RT_LIBCXX_PROVIDER=llvm
              -DRUNTIMES_amdgcn-amd-amdhsa_CACHE_FILES="$AOMP_REPOS/$AOMP_PROJECT_REPO_NAME/compiler-rt/cmake/caches/AMDGPU.cmake;$AOMP_REPOS/$AOMP_PROJECT_REPO_NAME/libcxx/cmake/caches/AMDGPU.cmake"
+             -DRUNTIMES_spirv64-amd-amdhsa_LLVM_ENABLE_RUNTIMES='openmp'
+             -DRUNTIMES_spirv64-amd-amdhsa_LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
              )
 
 # Enable Compiler-rt Sanitizer Build
