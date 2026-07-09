@@ -122,12 +122,27 @@ if [ "${DoCTest}" == "yes" ]; then
 fi
 
 run_llama_bench() {
-  ./bin/llama-bench "$@" 2>&1 | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
-  BenchStatus=${PIPESTATUS[0]}
+  local BenchOutput
+  # Capture the output so we can inspect it, while still streaming it to the
+  # bench log that the external extractor consumes.  pipefail keeps the
+  # llama-bench exit status from being masked by tee's success.
+  BenchOutput=$(set -o pipefail; ./bin/llama-bench "$@" 2>&1 | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log")
+  BenchStatus=$?
+
+  # Re-emit to stdout: the command substitution above suppressed live output.
+  echo "${BenchOutput}"
 
   if [ "${BenchStatus}" -ne 0 ]; then
     echo "ERROR: llama-bench failed with exit code ${BenchStatus}" | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
     return "${BenchStatus}"
+  fi
+
+  # When ROCm init fails, llama-bench silently falls back to CPU and still
+  # exits 0, producing meaningless numbers on the wrong device.  Treat this as
+  # a hard error so the run is not reported as a passing GPU benchmark.
+  if echo "${BenchOutput}" | grep -q "failed to initialize ROCm"; then
+    echo "ERROR: ROCm initialization failed; refusing to report CPU-fallback results" | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
+    return 1
   fi
 }
 
