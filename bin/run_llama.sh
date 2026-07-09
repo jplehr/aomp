@@ -122,13 +122,60 @@ if [ "${DoCTest}" == "yes" ]; then
 fi
 
 run_llama_bench() {
-  ./bin/llama-bench "$@" 2>&1 | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
-  BenchStatus=${PIPESTATUS[0]}
+  # Capture the output so callers can inspect it (e.g. to recover from a
+  # corrupt cached model), while still streaming it to the bench log that the
+  # external extractor consumes.  pipefail keeps llama-bench's exit status from
+  # being masked by tee's success.
+  BenchOutput=$(set -o pipefail; ./bin/llama-bench "$@" 2>&1 | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log")
+  BenchStatus=$?
+
+  # Re-emit to stdout: the command substitution above suppressed live output.
+  echo "${BenchOutput}"
 
   if [ "${BenchStatus}" -ne 0 ]; then
     echo "ERROR: llama-bench failed with exit code ${BenchStatus}" | tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
     return "${BenchStatus}"
   fi
+}
+
+# Run llama-bench against an -hf model, purging a corrupt cache entry and
+# retrying exactly once.  A partially downloaded / corrupt .gguf left behind by
+# an earlier interrupted run makes -hf fail instantly ("failed to load model")
+# because it reuses the cached file instead of re-downloading.  The retry is
+# bounded to a single attempt so a persistently bad model can never spin the
+# job; the outer `timeout` around run_llama.sh bounds the re-download too.
+run_llama_bench_hf() {
+  run_llama_bench "$@"
+  local Status=$?
+  if [ "${Status}" -eq 0 ]; then
+    return 0
+  fi
+
+  # Only recover from a model-load failure that names a cached file.
+  local FailedModel
+  FailedModel=$(printf '%s\n' "${BenchOutput}" |
+    sed -n "s/.*failed to load model '\(.*\)'.*/\1/p" | head -1)
+  if [ -z "${FailedModel}" ]; then
+    return "${Status}"
+  fi
+
+  # Prefer removing the whole HuggingFace-hub model directory (blobs +
+  # snapshots) so the retry starts from a clean slate; fall back to removing
+  # just the file for non-hub cache layouts.
+  if [[ "${FailedModel}" == *"/models--"*"/snapshots/"* ]]; then
+    local ModelRoot="${FailedModel%%/snapshots/*}"
+    echo "Removing corrupt cached model dir and retrying once: ${ModelRoot}" |
+      tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
+    rm -rf "${ModelRoot}"
+  elif [ -e "${FailedModel}" ]; then
+    echo "Removing corrupt cached model and retrying once: ${FailedModel}" |
+      tee -a "${LLAMA_TESTS_LOG_LOCATION}/llama-bench.log"
+    rm -f "${FailedModel}"
+  else
+    return "${Status}"
+  fi
+
+  run_llama_bench "$@"
 }
 
 if [ "${DoBenchmark}" == "yes" ]; then
@@ -157,8 +204,9 @@ if [ "${DoBenchmark}" == "yes" ]; then
 
   if [ ${#ModelPaths[@]} -eq 0 ] && ./bin/llama-bench --help 2>&1 | grep -q -- "--hf-repo"; then
     # Let llama-bench resolve/download the HF model directly.  Using llama-cli as
-    # a prefetch step can hang in ROCm/KFD waits on cold cache.
-    run_llama_bench -hf "${LLAMA_BENCH_HF_ID}" -ngl 999 -fa 1 -ub 2048 || exit $?
+    # a prefetch step can hang in ROCm/KFD waits on cold cache.  A corrupt cached
+    # download is purged and retried once by run_llama_bench_hf.
+    run_llama_bench_hf -hf "${LLAMA_BENCH_HF_ID}" -ngl 999 -fa 1 -ub 2048 || exit $?
   else
     if [ ${#ModelPaths[@]} -eq 0 ]; then
       echo "ERROR: No model files found in cache directory: ${CacheDir}"
