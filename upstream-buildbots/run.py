@@ -34,7 +34,7 @@ BASE_IMAGE = "localhost/manylinux:base"
 BASE_DOCKERFILE = "build_manylinux_x86_64.Dockerfile"
 THEROCK_LINK = "https://raw.githubusercontent.com/ROCm/TheRock/main/dockerfiles"
 # Update this when onboarding a new buildbot image.
-TARGETS = ["manylinux-build-only", "manylinux-hip-tpl"]
+TARGETS = ["manylinux-build-only", "manylinux-hip-tpl", "manylinux-devel"]
 
 # Host LLVM source tree is mounted here in the container.
 LLVM_MOUNT_TARGET = "/home/botworker/bbot/llvm-project"
@@ -129,6 +129,52 @@ def download(url, output_file, retries=3):
     sys.exit(f"error: failed to download {url}: {last_err}")
 
 
+# Upper bound on Python's byte-compile parallelism during `make install`.
+# CPython's Makefile hardcodes `compileall -j0`, which resolves to
+# os.cpu_count(). On very-high-core hosts (e.g. 512) that fan-out deadlocks the
+# multiprocessing pool: all workers sleep at 0% CPU forever and the base image
+# build hangs. Docker CPU limits do NOT help (compileall reads the host count,
+# ignoring cgroup/affinity). The only reliable fix is to cap the job count, so
+# after pulling we patch install_shared_pythons.sh to rewrite the generated
+# Makefile's `-j0` before `make install`. Override with DODEVEL_COMPILEALL_JOBS.
+COMPILEALL_JOBS_CAP = 8
+PYTHON_INSTALLER = "install_shared_pythons.sh"
+# Anchor line in the upstream script; the cap is injected right after it (the
+# build Makefile exists at this point, before `make install` runs).
+PATCH_ANCHOR = '  make -j"$(nproc)" > build.log 2>&1'
+PATCH_MARKER = "# dodevel: cap compileall parallelism"
+
+
+def patch_python_installer(ctx):
+    """Cap CPython's hardcoded `compileall -j0` in the pulled installer script.
+
+    Idempotent and re-applied on every pull. Fails loudly if the anchor line is
+    gone, which signals the upstream script changed and this patch needs review.
+    """
+    script = ctx / PYTHON_INSTALLER
+    text = script.read_text()
+
+    if PATCH_MARKER in text:
+        return
+
+    if PATCH_ANCHOR not in text:
+        sys.exit(
+            f"error: cannot patch {PYTHON_INSTALLER}: anchor line not found.\n"
+            f"       The upstream script changed; review the compileall -j0 "
+            f"deadlock workaround in run.py."
+        )
+
+    injection = (
+        f"{PATCH_ANCHOR}\n"
+        f"  {PATCH_MARKER} (-j0 deadlocks on high-core hosts); see run.py\n"
+        f'  sed -i "s/-j0/-j${{DODEVEL_COMPILEALL_JOBS:-{COMPILEALL_JOBS_CAP}}}/g" Makefile'
+    )
+    script.write_text(text.replace(PATCH_ANCHOR, injection, 1))
+    script.chmod(0o755)
+    log(f"patched {PYTHON_INSTALLER}: capped compileall -j0 to "
+        f"-j${{DODEVEL_COMPILEALL_JOBS:-{COMPILEALL_JOBS_CAP}}}")
+
+
 def run_pull(args):
     ctx = base_context_dir(args.dest)
     ctx.mkdir(parents=True, exist_ok=True)
@@ -144,12 +190,11 @@ def run_pull(args):
         if name.endswith(".sh"):
             output_file.chmod(0o755)
 
+    patch_python_installer(ctx)
     log("Pull complete.")
 
 
-def run_build(args):
-    require_docker()
-    target_dir = get_target_dir(args.target)
+def build_base_image(args):
     ctx = base_context_dir(args.dest)
 
     if args.rebuild_base or not image_exists(BASE_IMAGE):
@@ -167,6 +212,7 @@ def run_build(args):
 
         run_cmd([
             "docker", "build",
+            "--progress=plain",
             "-t", BASE_IMAGE,
             "-f", str(dockerfile),
             str(ctx),
@@ -174,10 +220,24 @@ def run_build(args):
     else:
         log(f"Base image {BASE_IMAGE} already present.")
 
+
+def run_build(args):
+    require_docker()
+    target_dir = get_target_dir(args.target)
+
+    build_base_image(args)
+
+    # Some targets (e.g. manylinux-devel used by dodevel) build their own final
+    # image and only need the shared base; stop after the base is ready.
+    if args.base_only:
+        log("Base image ready (--base-only).")
+        return
+
     image_tag = args.target
     log(f"Building target image {image_tag}")
     run_cmd([
         "docker", "build",
+        "--progress=plain",
         "-t", image_tag,
         "-f", str(target_dir / "Dockerfile"),
         str(target_dir),
@@ -238,6 +298,10 @@ def build_parser():
                         help="build images and create/run the container")
     parser.add_argument("--rebuild-base", action="store_true",
                         help="rebuild the base image even if it already exists")
+    parser.add_argument("--base-only", action="store_true",
+                        help="build only the shared base image, not the target "
+                             "image or a container (targets like manylinux-devel "
+                             "build their own final image)")
     parser.add_argument("--clean", action="store_true",
                         help="remove the selected container")
     parser.add_argument("--clean-all", action="store_true",
@@ -258,7 +322,7 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
 
-    if args.rebuild_base:
+    if args.rebuild_base or args.base_only:
         args.build = True
 
     if args.clean_all:

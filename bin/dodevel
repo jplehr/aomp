@@ -1,0 +1,354 @@
+#!/bin/bash
+# shellcheck source-path=SCRIPTDIR
+#
+# dodevel: turn a task name into a complete AOMP development environment.
+#
+# Given zero or one task name, dodevel selects (or creates) a matching LLVM
+# worktree, builds the shared development image if needed, and starts a
+# persistent per-task container with the source tree, tickets, GPU devices, and
+# host credentials wired in. With no argument it defaults to the "amd-staging"
+# task.
+#
+#   dodevel                 # amd-staging task, uses ${Workspace}/llvm-project
+#   dodevel feat-to-impl    # feat-to-impl task, uses llvm-project-feat-to-impl
+#
+# Environment overrides:
+#   ROCM_NIGHTLY_DATE=YYYYMMDD  pin an exact ROCm nightly (overrides the anchor)
+#   DODEVEL_REBUILD=1           force an image rebuild (after editing the Docker
+#                               recipe or prerequisites)
+
+set -euo pipefail
+
+# --- Locate the workspace ------------------------------------------------------
+# This script lives at ${Workspace}/aomp/bin/dodevel, so the workspace root is
+# three levels up. Deriving it from the script location means dodevel works
+# regardless of the current directory.
+RealPath="$(realpath "$0")"
+ScriptDir="$(dirname "${RealPath}")"
+Workspace="$(realpath "${ScriptDir}/../..")"
+
+AnchorScript="${ScriptDir}/rocm-nightly-anchor.sh"
+BuildbotsDir="${Workspace}/aomp/upstream-buildbots"
+DockerfileDir="${BuildbotsDir}/manylinux-devel"
+
+# Interdependent components managed symmetrically. For a given task each gets a
+# parallel <repo>-<task> worktree on branch <task>, created/validated identically.
+# Each entry is "<repo>:<base-branch>": the base branch a new <task> branch is cut
+# from, and the branch the no-argument default expects the main checkout to be on.
+# Most components track amd-staging; the AOMP repo itself tracks aomp-dev. Add a
+# repo here to bring it under the same management. The container starts in the
+# first component's worktree.
+Components=(
+  "llvm-project:amd-staging"
+  "SPIRV-LLVM-Translator:amd-staging"
+  "aomp:aomp-dev"
+)
+
+ImageTag="jp/aomp-devel"
+BaseImageTag="localhost/manylinux:base"
+# Task label used when no argument is given (container name, worktree suffix).
+DefaultTask="amd-staging"
+
+# --- Small helpers -------------------------------------------------------------
+function die() {
+  echo "dodevel: error: $*" >&2
+  exit 1
+}
+
+function warn() {
+  echo "dodevel: warning: $*" >&2
+}
+
+function info() {
+  echo "dodevel: $*"
+}
+
+# --- Parse arguments -----------------------------------------------------------
+if [ "$#" -gt 1 ]; then
+  die "expected at most one task name, got $#: $*"
+fi
+
+Task="${1:-${DefaultTask}}"
+
+# Conservative Docker/Git-compatible task name: lowercase alnum and dashes,
+# starting with an alnum. Keeps container names and branch names safe.
+if [[ ! "${Task}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  die "invalid task name '${Task}'; use lowercase letters, digits, and dashes (must start with a letter or digit)"
+fi
+
+ContainerName="jp-${Task}"
+
+# --- Preconditions -------------------------------------------------------------
+command -v docker >/dev/null 2>&1 || die "docker is not available on PATH"
+docker info >/dev/null 2>&1 || die "cannot talk to the Docker daemon; is it running and are you in the docker group?"
+
+for Entry in "${Components[@]}"; do
+  Component="${Entry%%:*}"
+  Main="${Workspace}/${Component}"
+  [ -d "${Main}/.git" ] || [ -f "${Main}/.git" ] ||
+    die "expected a ${Component} checkout at ${Main}, but it is not a git repository"
+  git -C "${Main}" rev-parse --git-dir >/dev/null 2>&1 ||
+    die "${Main} is not a valid git worktree"
+done
+
+# --- Resolve the worktree for each component ----------------------------------
+# Every component is created/validated identically for the task. Worktree is set
+# to the first component's worktree, where the container starts.
+Worktree=""
+
+function currentBranch() {
+  git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+function isRegisteredWorktree() {
+  # True if worktree $2 is registered as a worktree of main repo $1.
+  local main="$1" target
+  target="$(realpath "$2")"
+  git -C "${main}" worktree list --porcelain 2>/dev/null |
+    awk '/^worktree /{print $2}' |
+    while IFS= read -r wt; do
+      [ "$(realpath "${wt}")" = "${target}" ] && echo yes && break
+    done | grep -q yes
+}
+
+function localBranchExists() {
+  git -C "$1" show-ref --verify --quiet "refs/heads/$2"
+}
+
+function remoteBranchRef() {
+  # Echo the first remote-tracking ref in main repo $1 matching branch $2.
+  git -C "$1" for-each-ref --format='%(refname:short)' \
+    "refs/remotes/*/$2" 2>/dev/null | head -1
+}
+
+# Resolve one component's worktree for the task, creating/validating as needed.
+# Args: <repo> <base-branch>. The base branch is what a new <task> branch is cut
+# from and what the no-argument default expects the main checkout to be on (this
+# differs per repo: most track amd-staging, aomp tracks aomp-dev).
+# Sets the global ResolvedWorktree (not stdout, so info/warn output stays clean).
+function resolveComponent() {
+  local component="$1"
+  local baseBranch="$2"
+  local main="${Workspace}/${component}"
+
+  if [ "${Task}" = "${DefaultTask}" ]; then
+    # Default task: use the main worktree as-is. We expect it on its base branch,
+    # but today it often is not (that branch may live in a sibling worktree). Warn
+    # rather than fail; this tightens into an assertion once things are cleaned.
+    local branch
+    branch="$(currentBranch "${main}")"
+    if [ "${branch}" != "${baseBranch}" ]; then
+      warn "expected ${main} to be on '${baseBranch}', but it is on '${branch}'; using it as-is"
+    fi
+    ResolvedWorktree="${main}"
+    return 0
+  fi
+
+  local worktree="${Workspace}/${component}-${Task}"
+  if [ -e "${worktree}" ]; then
+    isRegisteredWorktree "${main}" "${worktree}" ||
+      die "${worktree} exists but is not a linked worktree of ${main}"
+    local branch
+    branch="$(currentBranch "${worktree}")"
+    [ "${branch}" = "${Task}" ] ||
+      die "${worktree} is on branch '${branch}', expected '${Task}'"
+    info "reusing existing worktree ${worktree} (branch ${Task})"
+  elif localBranchExists "${main}" "${Task}"; then
+    info "creating worktree ${worktree} from existing local branch ${Task}"
+    git -C "${main}" worktree add "${worktree}" "${Task}"
+  else
+    local remoteRef
+    remoteRef="$(remoteBranchRef "${main}" "${Task}")"
+    if [ -n "${remoteRef}" ]; then
+      info "creating worktree ${worktree} tracking ${remoteRef}"
+      git -C "${main}" worktree add --track -b "${Task}" "${worktree}" "${remoteRef}"
+    else
+      localBranchExists "${main}" "${baseBranch}" ||
+        die "cannot create branch '${Task}' in ${component}: no local '${baseBranch}' branch to base it on"
+      info "creating worktree ${worktree} with new branch ${Task} from ${baseBranch}"
+      git -C "${main}" worktree add -b "${Task}" "${worktree}" "${baseBranch}"
+    fi
+  fi
+  ResolvedWorktree="${worktree}"
+}
+
+for Entry in "${Components[@]}"; do
+  resolveComponent "${Entry%%:*}" "${Entry#*:}"
+  [ -z "${Worktree}" ] && Worktree="${ResolvedWorktree}"
+done
+
+# --- Build the development image if needed ------------------------------------
+function imageExists() {
+  docker image inspect "$1" >/dev/null 2>&1
+}
+
+function buildBaseImage() {
+  # The base recipe COPYs helper scripts that live only in TheRock, so it cannot
+  # be built from a single vendored file. run.py downloads the Dockerfile plus
+  # those scripts and builds only the shared base image.
+  local RunPy="${BuildbotsDir}/run.py"
+  [ -x "${RunPy}" ] || [ -f "${RunPy}" ] ||
+    die "cannot build base image: helper ${RunPy} not found"
+  # run.py downloads TheRock's base context into <dest>/manylinux-base. Keep that
+  # scratch out of the tracked source tree by using a cache dir. Prefer the local
+  # NVMe /work/${USER} over the typically NFS-mounted ${HOME}.
+  local CacheRoot="${HOME}/.cache"
+  if [ -d "/work/${USER}" ]; then
+    CacheRoot="/work/${USER}/.cache"
+  fi
+  local BaseDest="${CacheRoot}/dodevel"
+  mkdir -p "${BaseDest}"
+  info "building base image ${BaseImageTag} via run.py (downloads TheRock recipe + scripts)"
+  python3 "${RunPy}" manylinux-devel --pull --base-only --dest "${BaseDest}" ||
+    die "base image build failed (see run.py output above)"
+}
+
+function buildImage() {
+  if ! imageExists "${BaseImageTag}"; then
+    buildBaseImage
+  fi
+  imageExists "${BaseImageTag}" || die "base image '${BaseImageTag}' still missing after build attempt"
+
+  local RenderGid VideoGid MaxDate
+  RenderGid="$(getent group render | cut -d: -f3)"
+  VideoGid="$(getent group video | cut -d: -f3)"
+  [ -n "${RenderGid}" ] || die "no 'render' group on host; cannot map GPU access"
+  [ -n "${VideoGid}" ] || die "no 'video' group on host; cannot map GPU access"
+
+  # Weekly Sunday anchor keeps the ROCm layer cached Mon..Sat while advancing
+  # the nightly once a week. An exact pin overrides it.
+  MaxDate="$("${AnchorScript}")" ||
+    die "failed to compute ROCm nightly anchor (see ${AnchorScript}); is America/Chicago tzdata installed?"
+
+  local -a BuildArgs=(
+    --build-arg "BUILD_USER=$(id -un)"
+    --build-arg "BUILD_UID=$(id -u)"
+    --build-arg "BUILD_GID=$(id -g)"
+    --build-arg "RENDER_GID=${RenderGid}"
+    --build-arg "VIDEO_GID=${VideoGid}"
+    --build-arg "ROCM_NIGHTLY_MAX_DATE=${MaxDate}"
+  )
+  if [ -n "${ROCM_NIGHTLY_DATE:-}" ]; then
+    BuildArgs+=(--build-arg "ROCM_NIGHTLY_DATE=${ROCM_NIGHTLY_DATE}")
+  fi
+
+  info "building image ${ImageTag} (ROCm nightly max date ${MaxDate})"
+  docker build "${BuildArgs[@]}" -t "${ImageTag}" "${DockerfileDir}"
+}
+
+if [ "${DODEVEL_REBUILD:-0}" = "1" ] || ! imageExists "${ImageTag}"; then
+  buildImage
+fi
+
+# --- Enter or create the container --------------------------------------------
+function containerState() {
+  # Echo the container's State.Status, or empty if it does not exist.
+  docker inspect -f '{{.State.Status}}' "${ContainerName}" 2>/dev/null || true
+}
+
+State="$(containerState)"
+
+if [ "${State}" = "running" ]; then
+  info "attaching to running container ${ContainerName}"
+  exec docker exec -it "${ContainerName}" /bin/bash --login
+elif [ -n "${State}" ]; then
+  info "starting existing container ${ContainerName}"
+  exec docker start -ai "${ContainerName}"
+fi
+
+# --- First run for this task: assemble mounts and create the container ---------
+info "creating container ${ContainerName} in ${Worktree}"
+
+Home="${HOME}"
+RenderGid="$(getent group render | cut -d: -f3)"
+VideoGid="$(getent group video | cut -d: -f3)"
+
+declare -a RunArgs=(
+  --name "${ContainerName}"
+  --workdir "${Worktree}"
+  --device /dev/kfd
+  --device /dev/dri
+  --group-add "${VideoGid}"
+  --group-add "${RenderGid}"
+  --cap-add SYS_PTRACE
+  --security-opt seccomp=unconfined
+  --ipc=host
+)
+
+# Source tree and related host trees, all at identical paths so absolute paths
+# stored in git worktree metadata keep resolving inside the container.
+RunArgs+=(-v "${Home}/git:${Home}/git")
+
+# The workspace root lives outside ${HOME}/git (e.g. under /work), so mount it
+# separately at its identical path.
+case "${Workspace}/" in
+"${Home}/git/"*) : ;; # already covered by the ${HOME}/git mount
+*) RunArgs+=(-v "${Workspace}:${Workspace}") ;;
+esac
+
+# Tickets.
+TicketsDir="/work1/${USER}/tickets"
+if [ -d "${TicketsDir}" ]; then
+  RunArgs+=(-v "${TicketsDir}:${TicketsDir}")
+else
+  warn "tickets directory ${TicketsDir} not found; not mounting it"
+fi
+
+# Git identity: mount the host ~/.gitconfig read-only so commits inside the
+# container carry the correct user.name/user.email (and aliases). Read-only
+# keeps it host-owned; the container never needs to edit it.
+if [ -r "${Home}/.gitconfig" ]; then
+  RunArgs+=(-v "${Home}/.gitconfig:${Home}/.gitconfig:ro")
+else
+  warn "${Home}/.gitconfig not found; git commits inside the container will lack an identity"
+fi
+
+# --- Credentials, provided only at runtime ------------------------------------
+# Never bake secrets into the image; mount host-owned files instead.
+
+# Claude state: ~/.claude is a symlink on the host whose target lies outside the
+# mounted trees. Mount the resolved target read-write at its identical path, and
+# hand the target to the container so the login shell can recreate the symlink.
+if [ -e "${Home}/.claude" ]; then
+  ClaudeTarget="$(realpath "${Home}/.claude")"
+  RunArgs+=(-v "${ClaudeTarget}:${ClaudeTarget}")
+  RunArgs+=(-e "DODEVEL_CLAUDE_TARGET=${ClaudeTarget}")
+fi
+
+# Claude onboarding/auth state lives in the ~/.claude.json FILE (separate from
+# the ~/.claude dir): hasCompletedOnboarding, customApiKeyResponses, theme, and
+# per-project trust. Mount it read-only so Claude stops re-onboarding on every
+# start. Read-only means new folders trusted inside the container are not saved
+# back, so a first visit to a new worktree still prompts for trust once.
+if [ -r "${Home}/.claude.json" ]; then
+  RunArgs+=(-v "${Home}/.claude.json:${Home}/.claude.json:ro")
+else
+  warn "${Home}/.claude.json not found; Claude will run its onboarding prompts"
+fi
+
+# Credential/env loader, read-only.
+if [ -r "${Home}/.load-claude.sh" ]; then
+  RunArgs+=(-v "${Home}/.load-claude.sh:${Home}/.load-claude.sh:ro")
+else
+  warn "${Home}/.load-claude.sh not found; container will start without it"
+fi
+
+# Token directory, read-only when present.
+if [ -e "${Home}/.a-tokens" ]; then
+  ATokensTarget="$(realpath "${Home}/.a-tokens")"
+  RunArgs+=(-v "${ATokensTarget}:${ATokensTarget}:ro")
+  [ "${ATokensTarget}" = "${Home}/.a-tokens" ] ||
+    RunArgs+=(-v "${Home}/.a-tokens:${Home}/.a-tokens:ro")
+fi
+
+# SSH: forward the agent socket if available, otherwise mount ~/.ssh read-only.
+if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "${SSH_AUTH_SOCK}" ]; then
+  RunArgs+=(-v "${SSH_AUTH_SOCK}:${SSH_AUTH_SOCK}")
+  RunArgs+=(-e "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}")
+elif [ -d "${Home}/.ssh" ]; then
+  RunArgs+=(-v "${Home}/.ssh:${Home}/.ssh:ro")
+else
+  warn "no SSH agent socket and no ${Home}/.ssh; container will start without SSH credentials"
+fi
+
+exec docker run -it "${RunArgs[@]}" "${ImageTag}" /bin/bash --login
