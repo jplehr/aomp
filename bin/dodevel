@@ -172,8 +172,13 @@ function resolveComponent() {
   ResolvedWorktree="${worktree}"
 }
 
+# Capture each component's resolved worktree so the container can point the AOMP
+# build scripts at this task's sources (via the centralized AOMP_*_SRC vars).
+declare -A ComponentWorktree
 for Entry in "${Components[@]}"; do
-  resolveComponent "${Entry%%:*}" "${Entry#*:}"
+  ThisComponent="${Entry%%:*}"
+  resolveComponent "${ThisComponent}" "${Entry#*:}"
+  ComponentWorktree["${ThisComponent}"]="${ResolvedWorktree}"
   [ -z "${Worktree}" ] && Worktree="${ResolvedWorktree}"
 done
 
@@ -273,6 +278,38 @@ declare -a RunArgs=(
   --cap-add SYS_PTRACE
   --security-opt seccomp=unconfined
   --ipc=host
+)
+
+# AOMP build environment: point the build scripts at THIS task's component
+# worktrees, and give the task its own build and install trees so concurrent
+# task containers never share or clobber each other's outputs. This relies on
+# the centralized AOMP_*_SRC / BUILD_AOMP / AOMP overrides in aomp_common_vars;
+# with them unset the scripts fall back to the historical shared layout.
+#
+# Sources: map each managed component's worktree to its build-script variable.
+# Keyed by component name via a case, avoiding hyphenated literal array
+# subscripts (which some shell formatters misparse as arithmetic).
+for ThisComponent in "${!ComponentWorktree[@]}"; do
+  wt="${ComponentWorktree[${ThisComponent}]}"
+  case "${ThisComponent}" in
+  llvm-project) RunArgs+=(-e "AOMP_PROJECT_SRC=${wt}") ;;
+  SPIRV-LLVM-Translator) RunArgs+=(-e "AOMP_SPIRV_SRC=${wt}") ;;
+  aomp) RunArgs+=(-e "AOMP_SRC=${wt}") ;;
+  esac
+done
+
+# Per-task build and install trees on local NVMe (mirrors the base-image cache
+# choice: prefer /work/${USER}, fall back to ${HOME}). BUILD_AOMP redirects the
+# whole build tree; AOMP + AOMP_VERSION_MOD give a distinct, self-labeling
+# install dir and compiler symlink per task.
+TaskRoot="${HOME}/.cache/dodevel/${Task}"
+[ -d "/work/${USER}" ] && TaskRoot="/work/${USER}/.cache/dodevel/${Task}"
+mkdir -p "${TaskRoot}/build" "${TaskRoot}/install"
+RunArgs+=(
+  -v "${TaskRoot}:${TaskRoot}"
+  -e "BUILD_AOMP=${TaskRoot}/build"
+  -e "AOMP=${TaskRoot}/install/aomp"
+  -e "AOMP_VERSION_MOD=${Task}"
 )
 
 # Source tree and related host trees, all at identical paths so absolute paths
