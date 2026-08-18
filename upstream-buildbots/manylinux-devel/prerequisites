@@ -1,0 +1,42 @@
+# Packages required for interactive AOMP development that the TheRock
+# manylinux base image (AlmaLinux 8.10) does not already provide.
+#
+# The base recipe (build_manylinux_x86_64.Dockerfile) deliberately installs
+# development *tools* (cmake, ninja, ccache, gcc-toolset-13, git, python,
+# googletest, rust) but NOT development *packages*, so that portable release
+# builds cannot accidentally link against system libraries. That guardrail is
+# for the CI/CD release images. This is a local development image, where we
+# want the headers present so AOMP just builds; the -devel packages below are
+# an intentional relaxation of that rule, not a mistake to be "cleaned up".
+#
+# Only packages confirmed missing from a running base image are listed here.
+# Tools already pinned by the base (cmake, ninja, ccache, gcc/g++/gfortran,
+# git, git-lfs, python, gtest, rust, libtool, patchelf, make, curl, gdb) are
+# intentionally omitted so they are not shadowed by older dnf variants.
+#
+# AOMP build dependencies (development libraries)
+elfutils-devel
+elfutils-libelf-devel
+expat-devel
+fmt-devel
+gmp-devel
+libatomic
+libbabeltrace-devel
+libffi-devel
+libquadmath-devel
+mpfr-devel
+msgpack-devel
+ncurses-devel
+numactl-devel
+ocl-icd-devel
+openssl-devel
+pciutils-devel
+sqlite-devel
+systemd-devel
+xz-devel
+# Packaging/util support used by the AOMP build scripts
+rpm-build
+# Interactive development utilities missing from the base
+rsync
+vim-enhanced
+wget

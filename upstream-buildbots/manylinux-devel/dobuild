@@ -1,0 +1,26 @@
+#!/bin/bash
+# shellcheck shell=bash
+#
+# dobuild: run the AOMP build from THIS task's aomp worktree.
+#
+# In a dodevel container both the shared aomp checkout and the per-task
+# aomp-<task> worktree are mounted, so a bare `build_aomp.sh` (or `cd aomp/bin`)
+# can accidentally run the shared tree's build logic instead of the task's --
+# silently dropping worktree-specific build changes. dodevel exports AOMP_SRC
+# pointing at the task's aomp worktree; this wrapper always launches the build
+# from there. Any arguments are forwarded to build_aomp.sh unchanged.
+
+set -euo pipefail
+
+if [ -z "${AOMP_SRC:-}" ]; then
+  echo "dobuild: error: AOMP_SRC is not set; are you in a dodevel container?" >&2
+  exit 1
+fi
+
+Driver="${AOMP_SRC}/bin/build_aomp.sh"
+if [ ! -x "${Driver}" ] && [ ! -f "${Driver}" ]; then
+  echo "dobuild: error: ${Driver} not found" >&2
+  exit 1
+fi
+
+exec "${Driver}" "$@"
