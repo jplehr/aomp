@@ -30,7 +30,16 @@ aomp/bin/dodevel
 
 # Named task: uses (or creates) ${Workspace}/llvm-project-<task> on branch <task>
 aomp/bin/dodevel feat-to-impl
+
+# Remove the task's container, worktrees, and build/install tree
+aomp/bin/dodevel -rm feat-to-impl
 ```
+
+Removal refuses the protected names `amd-staging` and `aomp-dev`, and refuses
+the entire operation if a managed worktree is dirty, locked, or replaced by an
+unknown directory. It preserves all Git branches and every other bind-mounted
+host path. A top-level symlink at a managed cleanup path is unlinked without
+following or modifying its target.
 
 For a named task, the worktree/branch is resolved as:
 

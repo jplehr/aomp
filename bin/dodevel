@@ -3,14 +3,15 @@
 #
 # dodevel: turn a task name into a complete AOMP development environment.
 #
-# Given zero or one task name, dodevel selects (or creates) a matching LLVM
-# worktree, builds the shared development image if needed, and starts a
-# persistent per-task container with the source tree, tickets, GPU devices, and
-# host credentials wired in. With no argument it defaults to the "amd-staging"
-# task.
+# Given a task name, dodevel selects (or creates) matching component worktrees,
+# builds the shared development image if needed, and starts a persistent
+# per-task container. With no argument it defaults to the "amd-staging" task.
+# The -rm form removes only the named task's container, worktrees, and build
+# outputs; it preserves branches and all other bind-mounted data.
 #
-#   dodevel                 # amd-staging task, uses ${Workspace}/llvm-project
-#   dodevel feat-to-impl    # feat-to-impl task, uses llvm-project-feat-to-impl
+#   dodevel                    # amd-staging task, uses the main worktrees
+#   dodevel feat-to-impl       # create or enter the feat-to-impl environment
+#   dodevel -rm feat-to-impl   # remove that environment, preserving branches
 #
 # Environment overrides:
 #   ROCM_NIGHTLY_DATE=YYYYMMDD  pin an exact ROCm nightly (overrides the anchor)
@@ -66,7 +67,12 @@ function info() {
 }
 
 # --- Parse arguments -----------------------------------------------------------
-if [ "$#" -gt 1 ]; then
+RemoveMode=0
+if [ "${1:-}" = "-rm" ]; then
+  RemoveMode=1
+  shift
+  [ "$#" -eq 1 ] || die "usage: dodevel -rm <task>"
+elif [ "$#" -gt 1 ]; then
   die "expected at most one task name, got $#: $*"
 fi
 
@@ -78,7 +84,17 @@ if [[ ! "${Task}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   die "invalid task name '${Task}'; use lowercase letters, digits, and dashes (must start with a letter or digit)"
 fi
 
+if [ "${RemoveMode}" = "1" ] && { [ "${Task}" = "${DefaultTask}" ] || [ "${Task}" = "aomp-dev" ]; }; then
+  die "refusing to remove protected task '${Task}'"
+fi
+
 ContainerName="jp-${Task}"
+
+# Per-task build and install trees prefer local NVMe over the typically
+# NFS-mounted home directory. This path is also the only output tree removed by
+# -rm; it must stay identical to the path used when creating the environment.
+TaskRoot="${HOME}/.cache/dodevel/${Task}"
+[ -d "/work/${USER}" ] && TaskRoot="/work/${USER}/.cache/dodevel/${Task}"
 
 # --- Preconditions -------------------------------------------------------------
 command -v docker >/dev/null 2>&1 || die "docker is not available on PATH"
@@ -112,6 +128,135 @@ function isRegisteredWorktree() {
       [ "$(realpath "${wt}")" = "${target}" ] && echo yes && break
     done | grep -q yes
 }
+
+function preflightRemoval() {
+  local entry component main worktree status gitDir
+  local failed=0
+
+  for entry in "${Components[@]}"; do
+    component="${entry%%:*}"
+    main="${Workspace}/${component}"
+    worktree="${Workspace}/${component}-${Task}"
+
+    # Check -L first so a broken link is recognized, and never resolve a
+    # top-level link that cleanup is meant to unlink rather than traverse.
+    if [ -L "${worktree}" ]; then
+      continue
+    elif [ ! -e "${worktree}" ]; then
+      # A manually deleted worktree can remain registered. Git can safely clean
+      # that administrative entry during removal, so absence alone is fine.
+      continue
+    elif [ ! -d "${worktree}" ]; then
+      warn "refusing to remove unexpected non-directory ${worktree}"
+      failed=1
+      continue
+    elif ! isRegisteredWorktree "${main}" "${worktree}"; then
+      warn "refusing to remove ${worktree}; it is not a linked worktree of ${main}"
+      failed=1
+      continue
+    fi
+
+    if ! gitDir="$(git -C "${worktree}" rev-parse --absolute-git-dir 2>/dev/null)"; then
+      warn "refusing to remove ${worktree}; Git cannot inspect it"
+      failed=1
+      continue
+    fi
+    if [ -e "${gitDir}/locked" ]; then
+      warn "refusing to remove locked worktree ${worktree}"
+      failed=1
+      continue
+    fi
+    if ! status="$(git -C "${worktree}" status --porcelain --untracked-files=all)"; then
+      warn "refusing to remove ${worktree}; Git cannot determine whether it is clean"
+      failed=1
+    elif [ -n "${status}" ]; then
+      warn "refusing to remove dirty worktree ${worktree}; commit, stash, or clean it first"
+      failed=1
+    fi
+  done
+
+  if [ ! -L "${TaskRoot}" ] && [ -e "${TaskRoot}" ] && [ ! -d "${TaskRoot}" ]; then
+    warn "refusing to remove unexpected non-directory ${TaskRoot}"
+    failed=1
+  fi
+
+  [ "${failed}" = "0" ]
+}
+
+function removeWorktree() {
+  local main="$1"
+  local worktree="$2"
+  local status gitDir
+
+  if [ -L "${worktree}" ]; then
+    info "removing worktree symlink ${worktree} without following it"
+    rm -- "${worktree}"
+  elif [ -e "${worktree}" ]; then
+    [ -d "${worktree}" ] ||
+      die "${worktree} changed after preflight; refusing to remove it"
+    isRegisteredWorktree "${main}" "${worktree}" ||
+      die "${worktree} changed after preflight; refusing to remove it"
+    gitDir="$(git -C "${worktree}" rev-parse --absolute-git-dir 2>/dev/null)" ||
+      die "Git can no longer inspect ${worktree}; refusing to remove it"
+    [ ! -e "${gitDir}/locked" ] ||
+      die "${worktree} became locked after preflight; refusing to remove it"
+    status="$(git -C "${worktree}" status --porcelain --untracked-files=all)" ||
+      die "Git can no longer determine whether ${worktree} is clean"
+    [ -z "${status}" ] ||
+      die "${worktree} became dirty after preflight; refusing to remove it"
+    info "removing worktree ${worktree}"
+    git -C "${main}" worktree remove "${worktree}"
+  elif isRegisteredWorktree "${main}" "${worktree}"; then
+    info "removing stale worktree registration for ${worktree}"
+    git -C "${main}" worktree remove "${worktree}"
+  else
+    info "worktree ${worktree} is already absent"
+  fi
+}
+
+function removeTaskRoot() {
+  if [ -L "${TaskRoot}" ]; then
+    info "removing task output symlink ${TaskRoot} without following it"
+    rm -- "${TaskRoot}"
+  elif [ -d "${TaskRoot}" ]; then
+    info "removing task output directory ${TaskRoot}"
+    rm -rf -- "${TaskRoot}"
+  elif [ -e "${TaskRoot}" ]; then
+    die "${TaskRoot} changed after preflight; refusing to remove it"
+  else
+    info "task output directory ${TaskRoot} is already absent"
+  fi
+}
+
+function removeEnvironment() {
+  preflightRemoval || die "removal preflight failed; nothing was removed"
+
+  local state entry component main worktree
+  state="$(docker inspect -f '{{.State.Status}}' "${ContainerName}" 2>/dev/null || true)"
+  if [ -n "${state}" ]; then
+    info "removing container ${ContainerName}"
+    docker rm -f "${ContainerName}"
+  else
+    info "container ${ContainerName} is already absent"
+  fi
+
+  for entry in "${Components[@]}"; do
+    component="${entry%%:*}"
+    main="${Workspace}/${component}"
+    worktree="${Workspace}/${component}-${Task}"
+
+    removeWorktree "${main}" "${worktree}"
+  done
+
+  removeTaskRoot
+
+  info "removed environment '${Task}'; branches and bind-mounted data were preserved"
+}
+
+if [ "${RemoveMode}" = "1" ]; then
+  removeEnvironment
+  exit 0
+fi
 
 function localBranchExists() {
   git -C "$1" show-ref --verify --quiet "refs/heads/$2"
@@ -310,8 +455,6 @@ done
 # choice: prefer /work/${USER}, fall back to ${HOME}). BUILD_AOMP redirects the
 # whole build tree; AOMP + AOMP_VERSION_MOD give a distinct, self-labeling
 # install dir and compiler symlink per task.
-TaskRoot="${HOME}/.cache/dodevel/${Task}"
-[ -d "/work/${USER}" ] && TaskRoot="/work/${USER}/.cache/dodevel/${Task}"
 mkdir -p "${TaskRoot}/build" "${TaskRoot}/install"
 RunArgs+=(
   -v "${TaskRoot}:${TaskRoot}"
