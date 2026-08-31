@@ -64,13 +64,13 @@ COPY profile.d-dodevel.sh /etc/profile.d/zz-dodevel.sh
 COPY dobuild /usr/local/bin/dobuild
 RUN chmod +x /usr/local/bin/dobuild
 
-# Install Node.js (absent from the base) and then Claude Code globally.
+# Keep Node.js and npm available for MCP servers launched through npx. Claude
+# Code itself is installed separately in the final root-owned layer below so it
+# can be refreshed without rebuilding this stable runtime dependency.
 RUN dnf module reset -y nodejs && \
     dnf module enable -y nodejs:22 && \
     dnf install -y nodejs npm && \
-    dnf clean all && \
-    npm install -g @anthropic-ai/claude-code && \
-    claude --version
+    dnf clean all
 
 # Map the runtime user to the invoking host user so bind-mounted trees keep
 # correct ownership, and put the user in the GPU access groups. Follows the
@@ -104,6 +104,53 @@ RUN set -eux; \
     VIDEO_GRP="$(getent group "${VIDEO_GID}" | cut -d: -f1)"; \
     useradd --create-home --uid "${BUILD_UID}" --gid "${PRIMARY}" \
       -G "${RENDER_GRP},${VIDEO_GRP}" --shell /bin/bash "${BUILD_USER}"
+
+# Install Claude Code from Anthropic's signed latest-channel RPM repository.
+# This is deliberately the final root-owned layer: dodevel can vary the cache
+# token to fetch a new release while every expensive layer above remains cached.
+ARG CLAUDE_CODE_CACHE_BUST=
+RUN : "${CLAUDE_CODE_CACHE_BUST}" && \
+    curl -fsSL https://downloads.claude.ai/keys/claude-code.asc \
+      -o /etc/pki/rpm-gpg/RPM-GPG-KEY-claude-code && \
+    gpg --batch --show-keys --with-colons \
+      /etc/pki/rpm-gpg/RPM-GPG-KEY-claude-code | \
+      grep -q '^fpr:::::::::31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE:$' && \
+    printf '%s\n' \
+      '[claude-code]' \
+      'name=Claude Code' \
+      'baseurl=https://downloads.claude.ai/claude-code/rpm/latest' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-claude-code' \
+      > /etc/yum.repos.d/claude-code.repo && \
+    dnf install -y claude-code && \
+    dnf clean all && \
+    claude --version
+
+# Keep GitHub CLI independently refreshable as the final root-owned layer. The
+# downloaded repository key must contain exactly GitHub's documented primary
+# signing keys; dnf then verifies the package signature against that keyring.
+ARG GH_CLI_CACHE_BUST=
+RUN : "${GH_CLI_CACHE_BUST}" && \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.asc \
+      -o /etc/pki/rpm-gpg/RPM-GPG-KEY-github-cli && \
+    test "$(gpg --batch --show-keys --with-colons \
+      /etc/pki/rpm-gpg/RPM-GPG-KEY-github-cli | \
+      awk -F: '$1 == "pub" { want = 1; next } want && $1 == "fpr" { print $10; want = 0 }' | \
+      sort)" = "$(printf '%s\n' \
+      2C6106201985B60E6C7AC87323F3D4EA75716059 \
+      7F38BBB59D064DBCB3D84D725612B36462313325)" && \
+    printf '%s\n' \
+      '[gh-cli]' \
+      'name=packages for the GitHub CLI' \
+      'baseurl=https://cli.github.com/packages/rpm' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-github-cli' \
+      > /etc/yum.repos.d/gh-cli.repo && \
+    dnf install -y gh && \
+    dnf clean all && \
+    gh --version
 
 USER ${BUILD_USER}
 WORKDIR /home/${BUILD_USER}

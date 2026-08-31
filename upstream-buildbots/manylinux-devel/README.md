@@ -45,7 +45,9 @@ Container lifecycle per task (`jp-<task>`):
 - later call, running: `docker exec` into it.
 
 Containers are reusable (no `--rm`). Run `dodevel <task>` again any time to
-re-enter.
+re-enter. Image updates and new mounts do not alter an existing container;
+remove `jp-<task>` and run `dodevel <task>` again to recreate it from the current
+image and mount configuration.
 
 ## Environment overrides
 
@@ -55,12 +57,19 @@ ROCM_NIGHTLY_DATE=20260809 aomp/bin/dodevel
 
 # Force an image rebuild after editing the Dockerfile or prerequisites
 DODEVEL_REBUILD=1 aomp/bin/dodevel
+
+# Refresh Claude Code (and the later GitHub CLI layer)
+DODEVEL_UPDATE_CLAUDE=1 aomp/bin/dodevel
+
+# Refresh only the final GitHub CLI layer
+DODEVEL_UPDATE_GH=1 aomp/bin/dodevel
 ```
 
 ## What gets mounted
 
 - `~/git` and the workspace root, read-write at identical paths;
 - `/work1/$USER/tickets`, when present;
+- the host `/COD` compiler archive at `/COD`, read-only, when present;
 - `~/.load-claude.sh` (read-only), `~/.claude` state, and `~/.a-tokens`
   (read-only) for Claude;
 - the SSH agent socket if available, otherwise `~/.ssh` read-only.

@@ -16,6 +16,8 @@
 #   ROCM_NIGHTLY_DATE=YYYYMMDD  pin an exact ROCm nightly (overrides the anchor)
 #   DODEVEL_REBUILD=1           force an image rebuild (after editing the Docker
 #                               recipe or prerequisites)
+#   DODEVEL_UPDATE_CLAUDE=1     refresh the late Claude Code and GitHub CLI layers
+#   DODEVEL_UPDATE_GH=1         refresh only the final GitHub CLI image layer
 
 set -euo pipefail
 
@@ -236,12 +238,18 @@ function buildImage() {
   if [ -n "${ROCM_NIGHTLY_DATE:-}" ]; then
     BuildArgs+=(--build-arg "ROCM_NIGHTLY_DATE=${ROCM_NIGHTLY_DATE}")
   fi
+  if [ "${DODEVEL_UPDATE_CLAUDE:-0}" = "1" ]; then
+    BuildArgs+=(--build-arg "CLAUDE_CODE_CACHE_BUST=$(date -u +%s%N)")
+  fi
+  if [ "${DODEVEL_UPDATE_GH:-0}" = "1" ]; then
+    BuildArgs+=(--build-arg "GH_CLI_CACHE_BUST=$(date -u +%s%N)")
+  fi
 
   info "building image ${ImageTag} (ROCm nightly max date ${MaxDate})"
   docker build "${BuildArgs[@]}" -t "${ImageTag}" "${DockerfileDir}"
 }
 
-if [ "${DODEVEL_REBUILD:-0}" = "1" ] || ! imageExists "${ImageTag}"; then
+if [ "${DODEVEL_REBUILD:-0}" = "1" ] || [ "${DODEVEL_UPDATE_CLAUDE:-0}" = "1" ] || [ "${DODEVEL_UPDATE_GH:-0}" = "1" ] || ! imageExists "${ImageTag}"; then
   buildImage
 fi
 
@@ -329,6 +337,15 @@ if [ -d "${TicketsDir}" ]; then
   RunArgs+=(-v "${TicketsDir}:${TicketsDir}")
 else
   warn "tickets directory ${TicketsDir} not found; not mounting it"
+fi
+
+# Shared NFS-backed compiler archive. Resolve the host symlink and expose the
+# archive at its conventional /COD path; experiments consume but do not modify it.
+if [ -e /COD ]; then
+  CODTarget="$(realpath /COD)"
+  RunArgs+=(-v "${CODTarget}:/COD:ro")
+else
+  warn "/COD not found; not mounting the compiler archive"
 fi
 
 # Git identity: mount the host ~/.gitconfig read-only so commits inside the
